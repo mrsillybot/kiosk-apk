@@ -75,6 +75,8 @@ public class ConfigTest {
         for (String[] k : cases) {
             List<String> urls = c.activeUrls(at(k[0], "12:00"));
             eq("max shown " + k[0], Boolean.parseBoolean(k[1]), urls.contains("https://claude.ai/artifact/KiQpc6K2kUgfxcV85DhPoX"));
+            eq("laura follows max " + k[0], Boolean.parseBoolean(k[1]), urls.contains("https://claude.ai/artifact/JT6RpxNhYivhfSDzp94NTo"));
+            eq("stella follows max " + k[0], Boolean.parseBoolean(k[1]), urls.contains("https://claude.ai/artifact/9rZRLiR3fGSjjZoXP1dPx7"));
             eq("alex shown " + k[0], true, urls.contains("https://claude.ai/artifact/18FB2Uw8GYtvVSfGyvVSzu"));
         }
         eq("madplan off by default", false, c.activeUrls(at("2026-11-04", "12:00")).contains("https://claude.ai/artifact/VJGXEVNnJNJfAyL3GiSCVE"));

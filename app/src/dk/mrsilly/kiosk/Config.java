@@ -67,11 +67,13 @@ final class Config {
         return cfg;
     }
 
-    /** What a fresh install shows; Max' page follows the 2-2-3 rota (Wed-Thu, plus Alex' weekends). */
+    /** What a fresh install shows; Max' page follows the 2-2-3 rota (Wed-Thu, plus Alex' weekends); Laura and Stella follow the same rota. */
     static List<Page> defaults() {
         List<Page> d = new ArrayList<>();
         d.add(new Page("Alex", "https://claude.ai/artifact/18FB2Uw8GYtvVSfGyvVSzu", true, ALL_DAYS, false));
         d.add(new Page("Max", "https://claude.ai/artifact/KiQpc6K2kUgfxcV85DhPoX", true, WED_TO_SUN, true));
+        d.add(new Page("Laura", "https://claude.ai/artifact/JT6RpxNhYivhfSDzp94NTo", true, WED_TO_SUN, true));
+        d.add(new Page("Stella", "https://claude.ai/artifact/9rZRLiR3fGSjjZoXP1dPx7", true, WED_TO_SUN, true));
         d.add(new Page("Madplan", "https://claude.ai/artifact/VJGXEVNnJNJfAyL3GiSCVE", false, ALL_DAYS, false));
         d.add(new Page("To uger", "https://claude.ai/artifact/7h3TUHwp5t9pPFVh4MvtZ8", false, ALL_DAYS, false));
         return d;
