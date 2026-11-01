@@ -1,1 +1,50 @@
-# kiosk-apk
+# Køleskabs-kiosk (Android-APK)
+
+Kilde, build og udgivelse af appen. Hører til Mr Silly-systemet (privat repo `life-automations`, som ejer nøglen og Max' side).
+
+En lille app til den gamle Samsung-tablet på køleskabet. Den viser en liste af offentlige Claude artifact-sider på skift
+(Alex' brief, Max' side, madplan …), holder skærmen tændt i valgte tidsrum og slukker den ellers. Kun standardbiblioteker
+og Android-SDK'et, ingen Gradle. Hjemmebrug, ikke til Play Store (Alex droppede det 1/11-2026: konto 25 USD + 12 testere i 14 dage).
+
+## Brug
+- Installér: åbn https://raw.githubusercontent.com/mrsillybot/kiosk-apk/main/kiosk.apk på tabletten (offentligt, intet login), tillad "ukendte apps", åbn filen. Nye versioner installeres oven på de gamle (samme nøgle, indstillinger beholdes).
+- Indstillinger: tryk 5 gange i nederste højre hjørne.
+- Sider: flueben, navn, URL, ugedage, og "fre–søn kun hver anden uge" (Alex' weekender, anker 30/10-2026, jf. `familie/samvaer.md` i det private repo).
+  Standard: Alex (alle dage), Max (ons–søn, weekender hver anden uge); Madplan og To uger ligger slukket.
+- Tidsrum: hver række har start/slut (urskive) og ugedage (Hverdage / Weekend / Alle). Standard man–fre 6:00–8:15 og 15:00–22:00, lør–søn 7:00–22:00. Et tidsrum hører til den dag det starter.
+- Stryg til siden for næste/forrige side; timeren starter forfra. Standard 60 sekunder pr. side.
+- Uden for tidsrummene er skærmen sort og sover efter tablettens egen timeout (sæt den til 30–60 s). En alarm tænder skærmen ved næste start. Tænd-knappen eller et tryk på den sorte skærm viser siderne i 3 minutter.
+- Uden netværk: "Ingen forbindelse", nyt forsøg hvert 20. sekund.
+- Skærmlys dæmpes 20:00–6:00 til 25 % (kan ændres). Fastlås (skærmfastgørelse) er valgfri og slået fra; kræver Android-indstillingen "Skærmfastgørelse".
+- Claude-bjælken i toppen skjules med et script efter hver sideindlæsning (bygger på skallens egen `data-header-hidden`; kan gå i stykker, hvis Claude ændrer siden).
+- **KioskBridge:** `overblik/max.html` kalder `KioskBridge.skip()`, når Max ikke er hos Far, så appen springer siden over resten af dagen. Ugedagsreglen er reserve.
+
+## Automatisk opdatering
+- Appen tjekker højst hver 6. time `https://raw.githubusercontent.com/mrsillybot/kiosk-apk/main/version.json` (dette repo). Er `versionCode` højere end den installerede, hentes APK'en og Android viser "Opdatér" – ét tryk (på nyere Android evt. ingen).
+- Første gang beder appen om tilladelsen "Installér ukendte apps" for sig selv (Android-indstilling); slå den til.
+- Udgiv en ny version: `./release.sh bump` (se Bygge og udgive).
+- Fastlås (skærmfastgørelse) kan blokere opdateringsdialogen; slå den fra hvis opdateringer ikke går igennem.
+- Selve v2 (første med opdatering) skal installeres manuelt; derefter går det af sig selv.
+
+## Bygge og udgive
+- Struktur: `app/` (manifest, `src/`, `res/`), `tools/make_icon.py` (tegner ikonet), `build.sh`, `release.sh`, `VERSION`, og i roden `kiosk.apk` + `version.json` (det tabletten henter).
+- `./build.sh` bygger `kiosk.apk`. Kræver `$ANDROID_HOME` (platform 34 + build-tools 34.0.0 + cmdline-tools) og at netværket tillader `dl.google.com`.
+- **Signeringsnøglen ligger ikke her** (repoet er offentligt): `kiosk/debug.keystore` i det private `life-automations`. `build.sh` finder den på `/home/user/life-automations/kiosk/debug.keystore`, eller sæt `KIOSK_KEYSTORE`. Lav aldrig en ny nøgle: så kan tabletten ikke opdatere oven på den gamle.
+- `./release.sh bump` hæver `VERSION`, bygger, committer og pusher; tabletten henter den selv (højst hver 6. time).
+- d8 8.2.2 + JDK 21 crasher på anonyme og indre (ikke-statiske) klasser: brug statiske nested klasser eller lambdaer.
+- Arbejder du fra en chat: tilføj dette repo med `add_repo` (push) ved siden af `life-automations`.
+
+## Status og åbne punkter (1/11-2026)
+Appen er kun bygget, aldrig kørt på en enhed. Test på tabletten og ret:
+1. Alarmen om morgenen: på Android 10+ kan en alarm ikke altid åbne appen i baggrunden. Mangler skærmen at tænde kl. 6/15, så lav fuldskærms-notifikation eller bed om "vis oven på andre apps". Spørg efter tablettens Android-version.
+2. KioskBridge: ukendt om broen når ind i Claudes sandkasse-iframe. Vises Max' side på en dag hvor han er hos Karen, så svigter den.
+3. Gammel WebView/Chrome på tabletten kan vise siderne forkert: opdatér i Play Butik.
+4. Start efter genstart kan blokeres af Samsungs batteri-optimering.
+5. Dæmpning og fastlås er uprøvede.
+
+## Idéer (ikke bygget)
+- Hente dagens sideliste fra en lille fil (opdateret af morgenrutinen), så ferier/bytter følger kalenderen uden ændringer i appen. KioskBridge er første skridt.
+- Automatisk opdatering af APK'en (nu hentes den manuelt fra GitHub).
+- PIN på indstillingerne (nu skjult bag 5 tryk i hjørnet).
+- Tablet: begræns opladning til ca. 85 % (Samsung batteriindstilling) mod hævet batteri.
+- Play Store hvis det alligevel ønskes: `.aab`, release-nøgle, nyeste target-API, privatlivs-link, fjern personlige standardlinks.
