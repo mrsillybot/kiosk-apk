@@ -12,7 +12,8 @@ og Android-SDK'et, ingen Gradle. Hjemmebrug, ikke til Play Store (Alex droppede 
 - Sider: flueben, navn, URL, ugedage, og "fre–søn kun hver anden uge" (Alex' weekender, anker 30/10-2026, jf. `familie/samvaer.md` i det private repo).
   Standard: Alex (alle dage), Max (ons–søn, weekender hver anden uge); Madplan og To uger ligger slukket.
 - Tidsrum: hver række har start/slut (urskive) og ugedage (Hverdage / Weekend / Alle). Standard man–fre 6:00–8:15 og 15:00–22:00, lør–søn 7:00–22:00. Et tidsrum hører til den dag det starter.
-- Stryg til siden for næste/forrige side; timeren starter forfra. Standard 60 sekunder pr. side.
+- Stryg til siden for næste/forrige side; siden glider ind, og timeren starter forfra. Standard 60 sekunder pr. side.
+- Glidende skift: appen holder én WebView pr. side (den viste og dens to naboer) indlæst i baggrunden og genindlæser dem usynligt, når de er over 5 minutter gamle, så der aldrig vises en spinner. Koster hukommelse: bliver tabletten langsom, så skær ned til kun den viste side + næste (`preload` i `MainActivity`).
 - Uden for tidsrummene er skærmen sort og sover efter tablettens egen timeout (sæt den til 30–60 s). En alarm tænder skærmen ved næste start. Tænd-knappen eller et tryk på den sorte skærm viser siderne i 3 minutter.
 - Uden netværk: "Ingen forbindelse", nyt forsøg hvert 20. sekund.
 - Skærmlys dæmpes 20:00–6:00 til 25 % (kan ændres). Fastlås (skærmfastgørelse) er valgfri og slået fra; kræver Android-indstillingen "Skærmfastgørelse".

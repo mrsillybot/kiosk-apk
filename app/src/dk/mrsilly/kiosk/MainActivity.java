@@ -23,15 +23,18 @@ import android.webkit.WebViewClient;
 import android.widget.FrameLayout;
 import android.widget.TextView;
 import java.util.Calendar;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 public class MainActivity extends Activity {
     private final Handler handler = new Handler(Looper.getMainLooper());
-    private FrameLayout root;
-    private WebView web;
+    private FrameLayout root, stage;
     private View black;
     private Config cfg;
-    private int index = -1;
     private int taps = 0;
     private long firstTap = 0;
 
@@ -42,8 +45,20 @@ public class MainActivity extends Activity {
     private long peekUntil = 0;
     private GestureDetector swipes;
     private TextView offlineText;
-    private boolean offline = false;
-    private String lastUrl = "";
+    private static final long STALE_MS = 5 * 60 * 1000L;
+    private static final int SLIDE_MS = 260;
+    /** One WebView per page, kept alive so a swipe slides to an already loaded page (no spinner). */
+    private final Map<String, Slot> slots = new HashMap<>();
+    private Slot current;
+
+    private static final class Slot {
+        WebView web;
+        String url;
+        long loadedAt = 0;
+        boolean ready = false, failed = false, alive = true;
+        Slot refreshing;   // a hidden copy that is loading fresh content
+        Slot replaces;     // set on that copy: the slot it will take over from
+    }
 
     private void step() {
         if (active) nextPage();
@@ -78,27 +93,25 @@ public class MainActivity extends Activity {
         }
     }
 
-    /** Hides the Claude bar after each page load. (Static nested class: d8 8.2 crashes on inner classes here.) */
+    /** Reports load results per slot. (Static nested class: d8 8.2 crashes on inner classes here.) */
     private static final class BarClient extends WebViewClient {
         private final MainActivity a;
+        private final Slot slot;
         private boolean failed = false;
-        BarClient(MainActivity a) { this.a = a; }
+        BarClient(MainActivity a, Slot slot) { this.a = a; this.slot = slot; }
 
         @Override public void onReceivedError(WebView v, int code, String desc, String failingUrl) {
-            failed = true;
+            if (failingUrl != null && failingUrl.startsWith(slot.url)) failed = true;
         }
 
         @Override public void onPageFinished(WebView v, String url) {
-            if (failed) {                         // keep the browser's error page hidden and retry soon
-                failed = false;
-                a.setOffline(true);
-                v.postDelayed(() -> a.retry(), 20000);
-                return;
-            }
-            a.setOffline(false);
+            boolean f = failed;
+            failed = false;
+            a.onSlotFinished(slot, f);
+            if (f) return;
             hideClaudeBar(v, url);
             for (int ms : new int[] { 1000, 3000, 8000 }) {   // the shell builds its bar a little later
-                v.postDelayed(() -> hideClaudeBar(v, v.getUrl()), ms);
+                v.postDelayed(() -> { if (slot.alive) hideClaudeBar(v, v.getUrl()); }, ms);
             }
         }
     }
@@ -106,26 +119,153 @@ public class MainActivity extends Activity {
     /** Pages can call KioskBridge.skip() to be left out for the rest of the day (Max' page does when he isn't here). */
     private static final class Bridge {
         private final MainActivity a;
-        Bridge(MainActivity a) { this.a = a; }
-        @JavascriptInterface public void skip() { a.runOnUiThread(() -> a.skipCurrent()); }
+        private final Slot slot;
+        Bridge(MainActivity a, Slot slot) { this.a = a; this.slot = slot; }
+        @JavascriptInterface public void skip() { a.runOnUiThread(() -> a.skipSlot(slot)); }
     }
 
-    void skipCurrent() {
-        if (lastUrl.length() == 0) return;
-        Config.skipToday(this, lastUrl, Calendar.getInstance());
-        cfg = Config.load(this);
-        index--;                                   // stay in place in the shortened list
-        nextPage();
+    private Slot newSlot(String url, Slot replaces) {
+        Slot s = new Slot();
+        s.url = url;
+        s.replaces = replaces;
+        WebView w = new WebView(this);
+        WebSettings ws = w.getSettings();
+        ws.setJavaScriptEnabled(true);
+        ws.setDomStorageEnabled(true);
+        ws.setLoadWithOverviewMode(true);
+        ws.setMediaPlaybackRequiresUserGesture(false);
+        CookieManager.getInstance().setAcceptCookie(true);
+        CookieManager.getInstance().setAcceptThirdPartyCookies(w, true);
+        w.addJavascriptInterface(new Bridge(this, s), "KioskBridge");
+        w.setWebViewClient(new BarClient(this, s));
+        w.setBackgroundColor(Color.BLACK);
+        w.setVisibility(View.INVISIBLE);
+        s.web = w;
+        stage.addView(w, new FrameLayout.LayoutParams(-1, -1));
+        w.loadUrl(url);
+        return s;
     }
 
-    void setOffline(boolean off) {
-        offline = off;
-        web.setVisibility(off ? View.INVISIBLE : View.VISIBLE);
+    private void destroySlot(Slot s) {
+        s.alive = false;
+        s.web.animate().cancel();
+        stage.removeView(s.web);
+        s.web.destroy();
+        if (s.refreshing != null) { s.refreshing.replaces = null; destroySlot(s.refreshing); s.refreshing = null; }
+    }
+
+    private void resetSlots() {
+        for (Slot s : slots.values()) destroySlot(s);
+        slots.clear();
+        current = null;
+    }
+
+    void onSlotFinished(Slot s, boolean failed) {
+        if (!s.alive) return;
+        if (failed) {
+            if (s.replaces != null) {                      // a failed background refresh: keep the old page
+                s.replaces.refreshing = null;
+                destroySlot(s);
+                return;
+            }
+            s.failed = true;
+            handler.postDelayed(() -> { if (s.alive && !s.ready && active) s.web.loadUrl(s.url); }, 20000);
+            updateOffline();
+            return;
+        }
+        s.failed = false;
+        s.ready = true;
+        s.loadedAt = System.currentTimeMillis();
+        if (s.replaces != null) swap(s);
+        updateOffline();
+    }
+
+    /** A fresh copy finished loading: fade it in over the old one (or swap silently when the old one is hidden). */
+    private void swap(Slot fresh) {
+        Slot old = fresh.replaces;
+        fresh.replaces = null;
+        old.refreshing = null;
+        if (slots.get(fresh.url) != old) { destroySlot(fresh); return; }
+        slots.put(fresh.url, fresh);
+        if (current == old) {
+            current = fresh;
+            fresh.web.setTranslationX(0);
+            fresh.web.setAlpha(0f);
+            fresh.web.setVisibility(View.VISIBLE);
+            fresh.web.animate().alpha(1f).setDuration(300).withEndAction(() -> destroySlot(old)).start();
+        } else {
+            destroySlot(old);
+        }
+    }
+
+    private void updateOffline() {
+        boolean off = current != null && !current.ready && current.failed;
         offlineText.setVisibility(off ? View.VISIBLE : View.GONE);
     }
 
-    void retry() {
-        if (offline && active && lastUrl.length() > 0) web.loadUrl(lastUrl);
+    /** The page told us it should not be shown today. */
+    void skipSlot(Slot s) {
+        if (!s.alive) return;
+        Calendar now = Calendar.getInstance();
+        List<String> before = cfg.activeUrls(now);
+        int pos = before.indexOf(s.url);
+        Config.skipToday(this, s.url, now);
+        cfg = Config.load(this);
+        boolean wasCurrent = current == s;
+        slots.remove(s.url);
+        if (wasCurrent) current = null;
+        destroySlot(s);
+        List<String> urls = cfg.activeUrls(now);
+        if (urls.isEmpty()) { black.setVisibility(View.VISIBLE); return; }
+        if (wasCurrent) {
+            show(urls.get(Math.max(0, pos) % urls.size()), 1);
+            preload(urls, urls.indexOf(current.url));
+        } else if (current != null) {
+            preload(urls, Math.max(0, urls.indexOf(current.url)));
+        }
+    }
+
+    private void ensureFresh(String url) {
+        Slot s = slots.get(url);
+        if (s == null) { slots.put(url, newSlot(url, null)); return; }
+        if (s.ready && s.refreshing == null && System.currentTimeMillis() - s.loadedAt > STALE_MS) {
+            s.refreshing = newSlot(url, s);
+        }
+    }
+
+    /** Keeps the shown page and its two neighbours loaded and fresh; drops the rest. */
+    private void preload(List<String> urls, int at) {
+        Set<String> keep = new HashSet<>();
+        for (int d = -1; d <= 1; d++) keep.add(urls.get(Math.floorMod(at + d, urls.size())));
+        for (String u : keep) ensureFresh(u);
+        for (Iterator<Map.Entry<String, Slot>> it = slots.entrySet().iterator(); it.hasNext();) {
+            Slot s = it.next().getValue();
+            if (!keep.contains(s.url) && s != current) { it.remove(); destroySlot(s); }
+        }
+    }
+
+    /** Slides `url` in from the swipe direction (dir +1 = from the right) while the old page slides out. */
+    private void show(String url, int dir) {
+        Slot in = slots.get(url);
+        if (in == null) { in = newSlot(url, null); slots.put(url, in); }
+        Slot out = current;
+        current = in;
+        in.web.animate().cancel();
+        in.web.bringToFront();
+        in.web.setVisibility(View.VISIBLE);
+        in.web.setAlpha(1f);
+        int w = stage.getWidth();
+        if (out != null && out != in && w > 0) {
+            out.web.animate().cancel();
+            in.web.setTranslationX(dir * w);
+            in.web.animate().translationX(0).setDuration(SLIDE_MS).start();
+            out.web.animate().translationX(-dir * w).setDuration(SLIDE_MS)
+                .withEndAction(() -> { if (out.alive && current != out) out.web.setVisibility(View.INVISIBLE); }).start();
+        } else {
+            in.web.setTranslationX(0);
+            if (out != null && out != in) out.web.setVisibility(View.INVISIBLE);
+        }
+        updateOffline();
     }
 
     /** Hides the Claude bar on top of an artifact page (the shell has a built-in data-header-hidden switch). */
@@ -172,7 +312,7 @@ public class MainActivity extends Activity {
         if (now != active) {
             active = now;
             applyActive();
-            if (active) nextPage();
+            if (active) stepPage(0);
         }
         handler.postDelayed(gate, 30000);
     }
@@ -183,17 +323,8 @@ public class MainActivity extends Activity {
         root = new FrameLayout(this);
         root.setBackgroundColor(Color.BLACK);
 
-        web = new WebView(this);
-        WebSettings s = web.getSettings();
-        s.setJavaScriptEnabled(true);
-        s.setDomStorageEnabled(true);
-        s.setLoadWithOverviewMode(true);
-        s.setMediaPlaybackRequiresUserGesture(false);
-        CookieManager.getInstance().setAcceptCookie(true);
-        CookieManager.getInstance().setAcceptThirdPartyCookies(web, true);
-        web.addJavascriptInterface(new Bridge(this), "KioskBridge");
-        web.setWebViewClient(new BarClient(this));
-        root.addView(web, new FrameLayout.LayoutParams(-1, -1));
+        stage = new FrameLayout(this);
+        root.addView(stage, new FrameLayout.LayoutParams(-1, -1));
 
         offlineText = new TextView(this);
         offlineText.setText("Ingen forbindelse – prøver igen …");
@@ -234,7 +365,6 @@ public class MainActivity extends Activity {
         hideSystemUi();
         applyBrightness();
         applyPinning();
-        index = -1;
         handler.removeCallbacks(tick);
         handler.removeCallbacks(gate);
         if (!cfg.hasAnyPage()) {
@@ -244,7 +374,9 @@ public class MainActivity extends Activity {
         if (!cfg.isActive(Calendar.getInstance())) peekUntil = System.currentTimeMillis() + PEEK_MS;
         active = isOn();
         applyActive();
-        if (active) nextPage();
+        List<String> shown = cfg.activeUrls(Calendar.getInstance());
+        if (current != null && !shown.contains(current.url)) resetSlots();   // settings changed under us
+        if (active) stepPage(0);
         handler.postDelayed(tick, cfg.seconds * 1000L);
         handler.postDelayed(gate, 30000);
         new Thread(() -> Updater.check(getApplicationContext(), false)).start();
@@ -286,15 +418,17 @@ public class MainActivity extends Activity {
     /** One step of the carousel (only while inside a window). */
     private void nextPage() { stepPage(1); }
 
-    /** Moves the carousel one page forward (+1) or back (-1). */
+    /** Moves the carousel one page forward (+1) or back (-1); 0 keeps the current page (and shows the first one if none). */
     void stepPage(int dir) {
         List<String> urls = cfg.activeUrls(Calendar.getInstance());
         if (urls.isEmpty()) { black.setVisibility(View.VISIBLE); return; }
         black.setVisibility(View.GONE);
-        index = Math.floorMod(index + dir, urls.size());
-        String next = urls.get(index);
-        lastUrl = next;
-        if (offline || !next.equals(web.getUrl())) web.loadUrl(next); else web.reload();
+        int n = urls.size();
+        int i = current == null ? -1 : urls.indexOf(current.url);
+        int ni = i < 0 ? (dir >= 0 ? 0 : n - 1) : Math.floorMod(i + dir, n);
+        String url = urls.get(ni);
+        if (current == null || !url.equals(current.url)) show(url, dir >= 0 ? 1 : -1);
+        preload(urls, ni);
     }
 
     private void scheduleWake() {
@@ -304,6 +438,12 @@ public class MainActivity extends Activity {
             PendingIntent.FLAG_UPDATE_CURRENT | (Build.VERSION.SDK_INT >= 23 ? PendingIntent.FLAG_IMMUTABLE : 0));
         if (Build.VERSION.SDK_INT >= 23) am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, pi);
         else am.set(AlarmManager.RTC_WAKEUP, at, pi);
+    }
+
+    @Override
+    protected void onDestroy() {
+        resetSlots();
+        super.onDestroy();
     }
 
     @Override
