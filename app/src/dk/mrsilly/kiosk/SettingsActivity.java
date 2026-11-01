@@ -11,6 +11,8 @@ import android.widget.Button;
 import android.widget.CheckBox;
 import android.widget.EditText;
 import android.widget.LinearLayout;
+import android.widget.RadioButton;
+import android.widget.RadioGroup;
 import android.widget.ScrollView;
 import android.widget.SeekBar;
 import android.widget.TextView;
@@ -39,6 +41,7 @@ public class SettingsActivity extends Activity {
 
     private LinearLayout pageList, windowList;
     private EditText seconds;
+    private RadioGroup orient;
     private CheckBox pin, dimOn;
     private Button dimFromBtn, dimToBtn;
     private TextView dimLevelText;
@@ -109,6 +112,18 @@ public class SettingsActivity extends Activity {
         dimLevel.setOnSeekBarChangeListener(new LevelListener(dimLevelText));
         dim.addView(dimLevel);
         col.addView(dim);
+
+        col.addView(title("Skærmretning"));
+        orient = new RadioGroup(this);
+        String[] names = { "Følg tabletten", "Liggende (anbefalet)", "Stående" };
+        for (int i = 0; i < 3; i++) {
+            RadioButton rb = new RadioButton(this);
+            rb.setText(names[i]);
+            rb.setId(100 + i);
+            orient.addView(rb);
+        }
+        orient.check(100 + cfg.orientation);
+        col.addView(orient);
 
         col.addView(title("Fastlås"));
         pin = new CheckBox(this);
@@ -313,6 +328,7 @@ public class SettingsActivity extends Activity {
             int m = mask(r.days);
             if (m != 0) cfg.windows.add(new int[] { r.start, r.end, m });
         }
+        cfg.orientation = Math.max(0, Math.min(2, orient.getCheckedRadioButtonId() - 100));
         cfg.pin = pin.isChecked();
         cfg.dimOn = dimOn.isChecked();
         cfg.dimFrom = dimFrom; cfg.dimTo = dimTo; cfg.dimLevel = dimLevel.getProgress() + 5;

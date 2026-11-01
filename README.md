@@ -16,6 +16,7 @@ og Android-SDK'et, ingen Gradle. Hjemmebrug, ikke til Play Store (Alex droppede 
 - Glidende skift: appen holder én WebView pr. side (den viste og dens to naboer) indlæst i baggrunden og genindlæser dem usynligt, når de er over 5 minutter gamle, så der aldrig vises en spinner. Koster hukommelse: bliver tabletten langsom, så skær ned til kun den viste side + næste (`preload` i `MainActivity`).
 - Uden for tidsrummene er skærmen sort og sover efter tablettens egen timeout (sæt den til 30–60 s). En alarm tænder skærmen ved næste start. Tænd-knappen eller et tryk på den sorte skærm viser siderne i 3 minutter.
 - Uden netværk: "Ingen forbindelse", nyt forsøg hvert 20. sekund.
+- Skærmretning: liggende som standard (Max' side og briefen er lavet til at fylde en liggende tablet uden at scrolle); kan sættes til stående eller følge tabletten.
 - Skærmlys dæmpes 20:00–6:00 til 25 % (kan ændres). Fastlås (skærmfastgørelse) er valgfri og slået fra; kræver Android-indstillingen "Skærmfastgørelse".
 - Claude-bjælken i toppen skjules med et script efter hver sideindlæsning (bygger på skallens egen `data-header-hidden`; kan gå i stykker, hvis Claude ændrer siden).
 - **KioskBridge:** `overblik/max.html` kalder `KioskBridge.skip()`, når Max ikke er hos Far, så appen springer siden over resten af dagen. Ugedagsreglen er reserve.

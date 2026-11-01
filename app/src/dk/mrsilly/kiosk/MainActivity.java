@@ -365,6 +365,9 @@ public class MainActivity extends Activity {
         hideSystemUi();
         applyBrightness();
         applyPinning();
+        setRequestedOrientation(cfg.orientation == 1 ? android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+            : cfg.orientation == 2 ? android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
+            : android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR);
         handler.removeCallbacks(tick);
         handler.removeCallbacks(gate);
         if (!cfg.hasAnyPage()) {
