@@ -132,6 +132,18 @@ public class SettingsActivity extends Activity {
         col.addView(pin);
         col.addView(hint("Slå først 'Skærmfastgørelse' til i Android-indstillinger → Sikkerhed. Afslut ved at holde Tilbage og Oversigt inde samtidig."));
 
+        col.addView(title("Opdatering"));
+        Button upd = button("Version " + Updater.installed(this) + " – søg efter opdatering", null);
+        upd.setOnClickListener(v -> {
+            upd.setEnabled(false);
+            upd.setText("Søger…");
+            new Thread(() -> {
+                String msg = Updater.run(getApplicationContext());
+                runOnUiThread(() -> { upd.setText(msg); upd.setEnabled(true); });
+            }).start();
+        });
+        col.addView(upd);
+
         Button save = button("Gem og start", () -> { save(); finish(); });
         save.setTextSize(18);
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, px(56));
@@ -170,7 +182,7 @@ public class SettingsActivity extends Activity {
     private Button button(String t, Runnable r) {
         Button bt = new Button(this);
         bt.setText(t);
-        bt.setOnClickListener(v -> r.run());
+        if (r != null) bt.setOnClickListener(v -> r.run());
         return bt;
     }
 

@@ -36,10 +36,20 @@ final class Updater {
 
     /** Checks at most every 6 hours. `force` skips that limit. */
     static void check(Context c, boolean force) {
+        if (!force && !due(c)) return;
+        run(c);
+    }
+
+    /** Installed versionCode. */
+    @SuppressWarnings("deprecation")
+    static int installed(Context c) {
+        try { return c.getPackageManager().getPackageInfo(c.getPackageName(), 0).versionCode; } catch (Exception e) { return 0; }
+    }
+
+    /** Checks now and, if newer, downloads and hands the APK to the installer. Returns a short Danish status for the settings button. */
+    static String run(Context c) {
         SharedPreferences p = c.getSharedPreferences("kiosk", Context.MODE_PRIVATE);
-        long now = System.currentTimeMillis();
-        if (!force && now - p.getLong("updChecked", 0) < EVERY_MS) return;
-        p.edit().putLong("updChecked", now).apply();
+        p.edit().putLong("updChecked", System.currentTimeMillis()).apply();
         try {
             if (Build.VERSION.SDK_INT >= 26 && !c.getPackageManager().canRequestPackageInstalls()) {
                 if (!p.getBoolean("updAsked", false)) {       // once: let Alex switch on "install unknown apps" for this app
@@ -47,16 +57,18 @@ final class Updater {
                     c.startActivity(new Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
                         Uri.parse("package:" + c.getPackageName())).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
                 }
-                return;
+                return "Slå 'Installér ukendte apps' til for appen og tryk igen";
             }
             JSONObject v = new JSONObject(new String(download(BASE + "version.json"), "UTF-8"));
-            @SuppressWarnings("deprecation")
-            int have = c.getPackageManager().getPackageInfo(c.getPackageName(), 0).versionCode;
-            if (v.getInt("versionCode") <= have) return;
+            int have = installed(c), latest = v.getInt("versionCode");
+            if (latest <= have) return "Du har den nyeste version (v" + have + ")";
             File apk = new File(c.getCacheDir(), "update.apk");
             try (OutputStream out = new FileOutputStream(apk)) { out.write(download(BASE + v.optString("apk", "kiosk.apk"))); }
             install(c, apk);
-        } catch (Exception ignored) { }
+            return "Henter v" + latest + " – tryk Opdatér når Android spørger";
+        } catch (Exception e) {
+            return "Kunne ikke opdatere (ingen forbindelse?)";
+        }
     }
 
     private static byte[] download(String url) throws Exception {
