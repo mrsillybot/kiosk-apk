@@ -5,6 +5,7 @@
 set -e
 cd "$(dirname "$0")"
 [ "$1" = "bump" ] && echo $(( $(cat VERSION) + 1 )) > VERSION
+./test.sh
 ./build.sh
 V=$(cat VERSION)
 printf '{"versionCode": %s, "apk": "kiosk.apk"}\n' "$V" > version.json

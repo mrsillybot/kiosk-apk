@@ -28,6 +28,7 @@ og Android-SDK'et, ingen Gradle. Hjemmebrug, ikke til Play Store (Alex droppede 
 
 ## Bygge og udgive
 - Struktur: `app/` (manifest, `src/`, `res/`), `tools/make_icon.py` (tegner ikonet), `build.sh`, `release.sh`, `VERSION`, og i roden `kiosk.apk` + `version.json` (det tabletten henter).
+- `./test.sh` kører logik-testene (`tests/`, Config: tidsrum, ugedage, Max-rytmen, spring-over, dæmpning) på en almindelig JVM. Sæt `git config core.hooksPath .githooks` én gang pr. clone, så kører pre-push-hooken dem; `release.sh` kører dem også. UI, alarm, WebView og opdatering kan ikke testes her, kun på tabletten.
 - `./build.sh` bygger `kiosk.apk`. Kræver `$ANDROID_HOME` (platform 34 + build-tools 34.0.0 + cmdline-tools) og at netværket tillader `dl.google.com`.
 - **Signeringsnøglen ligger ikke her** (repoet er offentligt): `kiosk/debug.keystore` i det private `life-automations`. `build.sh` finder den på `/home/user/life-automations/kiosk/debug.keystore`, eller sæt `KIOSK_KEYSTORE`. Lav aldrig en ny nøgle: så kan tabletten ikke opdatere oven på den gamle.
 - `./release.sh bump` hæver `VERSION`, bygger, committer og pusher; tabletten henter den selv (højst hver 6. time).
