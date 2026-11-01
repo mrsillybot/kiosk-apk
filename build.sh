@@ -16,5 +16,5 @@ javac -g -Xlint:-options --release 8 -classpath "$JAR" -d "$OUT/classes" app/src
 "$BT/aapt2" link -o "$OUT/base.apk" -I "$JAR" --manifest app/AndroidManifest.xml --version-code "$(cat VERSION)" --version-name "1.$(cat VERSION)" "$OUT/res.zip"
 (cd "$OUT" && zip -q -u base.apk classes.dex)
 "$BT/zipalign" -f 4 "$OUT/base.apk" "$OUT/aligned.apk"
-"$BT/apksigner" sign --ks "$KEYSTORE" --ks-pass pass:kiosk123 --out kiosk.apk "$OUT/aligned.apk"
+"$BT/apksigner" sign --v4-signing-enabled false --ks "$KEYSTORE" --ks-pass pass:kiosk123 --out kiosk.apk "$OUT/aligned.apk"
 "$BT/apksigner" verify kiosk.apk && ls -l kiosk.apk
