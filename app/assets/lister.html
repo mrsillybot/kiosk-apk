@@ -126,11 +126,11 @@ const wideMq = window.matchMedia("(min-width: 900px)");
 if (/[?&]app\b/.test(location.search)) document.body.classList.add("app");
 
 // --- bridge ---
-const pending = new Map(); let seq = 0;
-window.__listsDone = (id, ok, res) => { const p = pending.get(id); pending.delete(id); if (!p) return; ok ? p.resolve(JSON.parse(res)) : p.reject(new Error(res)); };
+const waiters = new Map(); let seq = 0;
+window.__listsDone = (id, ok, res) => { const p = waiters.get(id); waiters.delete(id); if (!p) return; ok ? p.resolve(JSON.parse(res)) : p.reject(new Error(res)); };
 const call = (op, arg) => new Promise((resolve, reject) => {
   if (!window.Lists) return reject(new Error("Åbn Lister i kiosk-appen eller Lister-ikonet på telefonen."));
-  const id = ++seq; pending.set(id, { resolve, reject }); window.Lists.call(id, op, JSON.stringify(arg || {}));
+  const id = ++seq; waiters.set(id, { resolve, reject }); window.Lists.call(id, op, JSON.stringify(arg || {}));
 });
 
 // --- state: path -> {sha, data} ---
@@ -138,14 +138,20 @@ let files = new Map(), plan = { days: {} }, loaded = false, failed = "", note = 
 const view = document.getElementById("view"), statusEl = document.getElementById("status"), appEl = document.getElementById("app");
 const parse = c => { try { return JSON.parse(c); } catch (e) { return null; } };
 
-const under = dir => [...files].filter(([p, f]) => p.startsWith(dir) && f.data && !f.data.archived).map(([p, f]) => ({ path: p, ...f.data }));
+// Writes that have not reached GitHub yet (no net in the shop, a stale sha): kept per file in localStorage and shown as if saved; flushed in order, retried every 8 s.
+let pending = {}; try { pending = JSON.parse(localStorage.getItem("listerPending") || "{}"); } catch (e) {}
+const savePending = () => { try { localStorage.setItem("listerPending", JSON.stringify(pending)); } catch (e) {} };
+const dataOf = p => pending[p] ?? files.get(p)?.data;
+const allPaths = () => [...new Set([...files.keys(), ...Object.keys(pending)])];
+const under = dir => allPaths().filter(p => p.startsWith(dir)).map(p => ({ path: p, d: dataOf(p) })).filter(x => x.d && !x.d.archived).map(x => ({ path: x.path, ...x.d }));
 const items = () => under("indkoeb/"), tasks = () => under("opgaver/");
-const logs = () => { const m = new Map(); for (const [p, f] of files) { const x = /^log\/(\d{4}-\d{2}-\d{2})\/(Max|Laura|Stella)-/.exec(p); if (x && f.data && f.data.done !== false && f.data.chore) m.set(`${x[1]}_${x[2]}_${hash(f.data.chore)}`, true); } return m; };
+const logs = () => { const m = new Map(); for (const p of allPaths()) { const x = /^log\/(\d{4}-\d{2}-\d{2})\/(Max|Laura|Stella)-/.exec(p), d = dataOf(p); if (x && d && d.done !== false && d.chore) m.set(`${x[1]}_${x[2]}_${hash(d.chore)}`, true); } return m; };
 const logPath = (date, kid, chore) => `log/${date}/${kid}-${hash(chore)}.json`;
 const dayChores = date => plan.days?.[date] || {};
 const ordered = rows => rows.slice().sort((a, b) => (!!a.done - !!b.done) || ((a.order ?? a.at ?? 0) - (b.order ?? b.at ?? 0)) || String(a.text).localeCompare(String(b.text), "da"));
 
-async function refresh() {
+async function refresh() { await readSnapshot(); render(); }
+async function readSnapshot() {
   try {
     const r = await call("snapshot");
     const next = new Map();
@@ -153,21 +159,22 @@ async function refresh() {
     files = next; const pl = files.get("plan.json")?.data; if (pl?.days) plan = pl;
     loaded = true; lastLoad = Date.now(); failed = "";
   } catch (e) { failed = String(e.message || e); }
-  render();
 }
-// write one file: create (no sha) or update (sha we last read); a stale sha means someone changed it: re-read once and redo
-async function save(path, mutate, fresh) {
-  busy++;
+// write = remember the wanted content of the file and flush: create (no sha) or update (the sha we last read); a stale sha (409/422) means someone changed it: re-read, then try again
+let flushing = false, flushTimer = null;
+function set(path, obj) { pending[path] = obj; savePending(); render(); flush(); }
+async function flush() {
+  if (flushing) return; flushing = true; busy++;
   try {
-    for (let attempt = 0; attempt < 2; attempt++) {
-      const cur = files.get(path); const data = mutate(cur?.data ? { ...cur.data } : fresh);
+    for (const p of Object.keys(pending)) {
+      const want = pending[p], cur = files.get(p);
       try {
-        const r = await call("put", { path, content: JSON.stringify(data, null, 1) + "\n", sha: cur?.sha || "" });
-        files.set(path, { sha: r.sha, data }); render(); return;
-      } catch (e) { if (attempt === 1) throw e; await refresh(); }
+        const r = await call("put", { path: p, content: JSON.stringify(want, null, 1) + "\n", sha: cur?.sha || "" });
+        files.set(p, { sha: r.sha, data: want }); if (pending[p] === want) delete pending[p]; savePending(); render();
+      } catch (e) { if (/409|422/.test(String(e.message))) { await readSnapshot(); continue; } break; }
     }
-  } catch (e) { note = "Kunne ikke gemme. Prøv igen."; setTimeout(() => { note = ""; render(); }, 4000); }
-  finally { busy--; render(); }
+  } finally { flushing = false; busy--; }
+  clearTimeout(flushTimer); if (Object.keys(pending).length) { flushTimer = setTimeout(flush, 8000); render(); }
 }
 
 function shoppingHtml() {
@@ -233,7 +240,8 @@ function render() {
   if (!loaded) { statusEl.textContent = "Henter …"; return; }
   const typed = { newitem: document.getElementById("newitem")?.value || "", newtask: document.getElementById("newtask")?.value || "" };
   const focus = document.activeElement?.id;
-  statusEl.textContent = (note || (failed ? "Kan ikke opdatere lige nu" : new Date().toLocaleDateString("da-DK", { weekday: "long", day: "numeric", month: "long" })));
+  const waiting = Object.keys(pending).length;
+  statusEl.textContent = (note || (waiting ? `${waiting} venter på net` : failed ? "Kan ikke opdatere lige nu" : new Date().toLocaleDateString("da-DK", { weekday: "long", day: "numeric", month: "long" })));
   if (t === "tal") { view.innerHTML = statsHtml(); return; }
   const shop = shoppingHtml(), chores = choresHtml(), tk = tasksHtml();
   if (wide) view.innerHTML = `<div class="cols"><div class="col"><div class="colhead"><h2>Indkøb</h2><span class="count">${shop.open} tilbage</span></div>${shop.html}</div><div class="col"><div class="colhead"><h2>Opgaver</h2></div>${chores}${tk}</div></div>`;
@@ -243,11 +251,11 @@ function render() {
   if (focus === "newitem" || focus === "newtask") document.getElementById(focus)?.focus();
 }
 
-const toggleFile = path => { const cur = files.get(path)?.data; if (!cur) return; const on = !cur.done; save(path, d => ({ ...d, done: on, doneAt: on ? Date.now() : null })); };
-const clearDone = dir => { for (const [p, f] of files) if (p.startsWith(dir) && f.data?.done && !f.data.archived) save(p, d => ({ ...d, archived: true })); };
+const toggleFile = path => { const cur = dataOf(path); if (!cur) return; const on = !cur.done; set(path, { ...cur, done: on, doneAt: on ? Date.now() : null }); };
+const clearDone = dir => { for (const p of allPaths()) { const d = p.startsWith(dir) ? dataOf(p) : null; if (d?.done && !d.archived) set(p, { ...d, archived: true }); } };
 function toggleChore(kid, chore) {
-  const date = todayStr(), path = logPath(date, kid, chore), cur = files.get(path)?.data, on = !(cur && cur.done !== false);
-  save(path, d => ({ ...d, chore, done: on, at: Date.now(), by: "Alex" }), { chore });
+  const path = logPath(todayStr(), kid, chore), cur = dataOf(path), on = !(cur && cur.done !== false);
+  set(path, { chore, done: on, at: Date.now(), by: "Alex" });
 }
 view.addEventListener("click", e => {
   const row = e.target.closest(".row");
@@ -263,16 +271,16 @@ view.addEventListener("submit", e => {
   e.preventDefault();
   if (e.target.id === "addform") {
     const inp = document.getElementById("newitem"), text = inp.value.trim(); if (!text) return; inp.value = "";
-    save(`indkoeb/${newId()}.json`, d => d, { text, section: sectionFor(text), done: false, doneAt: null, archived: false, by: "Alex", at: Date.now() });
+    set(`indkoeb/${newId()}.json`, { text, section: sectionFor(text), done: false, doneAt: null, archived: false, by: "Alex", at: Date.now() });
   } else if (e.target.id === "addtask") {
     const inp = document.getElementById("newtask"), text = inp.value.trim(); if (!text) return; inp.value = "";
-    save(`opgaver/${newId()}.json`, d => d, { text, ...(taskWho ? { who: taskWho } : {}), done: false, doneAt: null, archived: false, by: "Alex", at: Date.now() }); taskWho = "";
+    set(`opgaver/${newId()}.json`, { text, ...(taskWho ? { who: taskWho } : {}), done: false, doneAt: null, archived: false, by: "Alex", at: Date.now() }); taskWho = "";
   }
 });
 window.addEventListener("hashchange", render);
 wideMq.addEventListener?.("change", render);
-window.__listerShown = () => { if (!busy) refresh(); };
-setInterval(() => { if (!busy && !document.hidden && !(document.activeElement && /INPUT/.test(document.activeElement.tagName))) refresh(); }, 30000);
-refresh();
+window.__listerShown = () => { if (!busy) refresh(); flush(); };
+setInterval(() => { if (!busy && !document.hidden && !(document.activeElement && /INPUT/.test(document.activeElement.tagName))) refresh(); }, 60000);
+refresh().then(flush);
 </script>
 </body></html>
