@@ -25,8 +25,12 @@ final class Config {
         boolean on;
         int days;
         boolean alt;   // Sat, Sun and the Monday after only count in Alex' weekends (every other week); Fri is every week
+        boolean kid;   // a child's page: shown the mornings the child wakes at Alex' and the afternoons the child is with Alex (days/alt are ignored)
         Page(String name, String url, boolean on, int days, boolean alt) {
             this.name = name; this.url = url; this.on = on; this.days = days; this.alt = alt;
+        }
+        Page(String name, String url, boolean on, int days, boolean alt, boolean kid) {
+            this(name, url, on, days, alt); this.kid = kid;
         }
     }
 
@@ -39,6 +43,7 @@ final class Config {
     List<int[]> windows = new ArrayList<>();
     String skipDay = "";                       // pages that asked to be skipped today (see KioskBridge)
     Set<String> skipped = new HashSet<>();
+    java.util.Map<String, Long> skipUntil = new java.util.HashMap<>();   // url -> epoch ms: a page asked to be left out until then (see KioskBridge.skipUntil)
     int orientation = 1;                       // 0 = follow the tablet, 1 = landscape, 2 = portrait
     String reportToken = "";                   // GitHub token for the children's tick reports (see Reporter)
     boolean pin = false;                       // lock the app in place (screen pinning)
@@ -51,6 +56,11 @@ final class Config {
         cfg.seconds = p.getInt("seconds", 60);
         cfg.skipDay = p.getString("skipDay", "");
         cfg.skipped = new HashSet<>(p.getStringSet("skipUrls", new HashSet<String>()));
+        try {
+            JSONObject u = new JSONObject(p.getString("skipUntil", "{}"));
+            java.util.Iterator<String> it = u.keys();
+            while (it.hasNext()) { String k = it.next(); cfg.skipUntil.put(k, u.getLong(k)); }
+        } catch (Exception ignored) { }
         cfg.orientation = p.getInt("orient", 1);
         cfg.pin = p.getBoolean("pin", false);
         cfg.reportToken = p.getString("reportToken", "");
@@ -64,8 +74,10 @@ final class Config {
             JSONArray a = new JSONArray(p.getString("pages", "[]"));
             for (int i = 0; i < a.length(); i++) {
                 JSONObject o = a.getJSONObject(i);
-                cfg.pages.add(new Page(o.optString("name", ""), o.getString("url"), o.optBoolean("on", true),
-                    migrateDays(o.optInt("days", ALL_DAYS), o.optBoolean("alt", false)), o.optBoolean("alt", false)));
+                boolean alt = o.optBoolean("alt", false), kid = o.optBoolean("kid", false);
+                int days = o.optInt("days", ALL_DAYS);
+                if (alt && (days == WED_TO_SUN || days == KID_DAYS)) { kid = true; days = ALL_DAYS; alt = false; }   // the earlier day-based kid defaults
+                cfg.pages.add(new Page(o.optString("name", ""), o.getString("url"), o.optBoolean("on", true), days, alt, kid));
             }
         } catch (Exception ignored) { }
         return cfg;
@@ -76,13 +88,29 @@ final class Config {
         return alt && days == WED_TO_SUN ? KID_DAYS : days;
     }
 
+    static boolean alexWeekend(long friday) { return Math.floorMod((friday - WEEKEND_ANCHOR) / 7, 2L) == 0; }
+
+    /** The 2-2-3 rota (familie/samvaer.md): are the children with Alex in the morning (they woke at his) or in the afternoon of this day?
+     *  Wed-Thu nights at Alex' (so Thu and Fri mornings, Wed and Thu afternoons); Fri-Sun in his weekends (so Sat, Sun and the Monday after mornings). */
+    static boolean kidHere(int dow, boolean morning, long epochDay) {
+        if (morning) {
+            if (dow == 3 || dow == 4) return true;
+            if (dow == 5 || dow == 6) return alexWeekend(epochDay - (dow - 4));
+            if (dow == 0) return alexWeekend(epochDay - 3);
+            return false;
+        }
+        if (dow == 2 || dow == 3) return true;
+        if (dow >= 4) return alexWeekend(epochDay - (dow - 4));
+        return false;
+    }
+
     /** What a fresh install shows; the kids' pages show the mornings they wake at Alex' (Thu, Fri, plus Alex' weekends and the Monday after); Laura and Stella follow the same rota. */
     static List<Page> defaults() {
         List<Page> d = new ArrayList<>();
         d.add(new Page("Alex", "https://claude.ai/artifact/18FB2Uw8GYtvVSfGyvVSzu", true, ALL_DAYS, false));
-        d.add(new Page("Max", "https://claude.ai/artifact/KiQpc6K2kUgfxcV85DhPoX", true, KID_DAYS, true));
-        d.add(new Page("Laura", "https://claude.ai/artifact/JT6RpxNhYivhfSDzp94NTo", true, KID_DAYS, true));
-        d.add(new Page("Stella", "https://claude.ai/artifact/9rZRLiR3fGSjjZoXP1dPx7", true, KID_DAYS, true));
+        d.add(new Page("Max", "https://claude.ai/artifact/KiQpc6K2kUgfxcV85DhPoX", true, ALL_DAYS, false, true));
+        d.add(new Page("Laura", "https://claude.ai/artifact/JT6RpxNhYivhfSDzp94NTo", true, ALL_DAYS, false, true));
+        d.add(new Page("Stella", "https://claude.ai/artifact/9rZRLiR3fGSjjZoXP1dPx7", true, ALL_DAYS, false, true));
         d.add(new Page("Madplan", "https://claude.ai/artifact/VJGXEVNnJNJfAyL3GiSCVE", false, ALL_DAYS, false));
         d.add(new Page("To uger", "https://claude.ai/artifact/7h3TUHwp5t9pPFVh4MvtZ8", false, ALL_DAYS, false));
         return d;
@@ -101,12 +129,28 @@ final class Config {
         p.edit().putString("skipDay", dayKey(now)).putStringSet("skipUrls", set).apply();
     }
 
+    /** A page asked to be left out until `untilMs` (e.g. this morning only, because the children arrive after school). */
+    static void skipUntil(Context c, String url, long untilMs) {
+        SharedPreferences p = c.getSharedPreferences("kiosk", Context.MODE_PRIVATE);
+        JSONObject o;
+        try { o = new JSONObject(p.getString("skipUntil", "{}")); } catch (Exception e) { o = new JSONObject(); }
+        try {
+            long now = System.currentTimeMillis();
+            java.util.Iterator<String> it = o.keys();
+            List<String> old = new ArrayList<>();
+            while (it.hasNext()) { String k = it.next(); if (o.optLong(k) < now) old.add(k); }
+            for (String k : old) o.remove(k);
+            o.put(url.trim(), untilMs);
+        } catch (Exception ignored) { }
+        p.edit().putString("skipUntil", o.toString()).apply();
+    }
+
     void save(Context c) {
         JSONArray a = new JSONArray();
         try {
             for (Page pg : pages) {
                 a.put(new JSONObject().put("name", pg.name).put("url", pg.url).put("on", pg.on)
-                    .put("days", pg.days).put("alt", pg.alt));
+                    .put("days", pg.days).put("alt", pg.alt).put("kid", pg.kid));
             }
         } catch (Exception ignored) { }
         c.getSharedPreferences("kiosk", Context.MODE_PRIVATE).edit()
@@ -126,9 +170,14 @@ final class Config {
         int dow = (now.get(Calendar.DAY_OF_WEEK) + 5) % 7;   // Mon = 0 ... Sun = 6
         long epochDay = (now.getTimeInMillis() + now.get(Calendar.ZONE_OFFSET) + now.get(Calendar.DST_OFFSET)) / 86400000L;
         for (Page pg : pages) {
-            if (!pg.on || pg.url.trim().isEmpty() || (pg.days & (1 << dow)) == 0) continue;
+            if (!pg.on || pg.url.trim().isEmpty()) continue;
+            if (!pg.kid && (pg.days & (1 << dow)) == 0) continue;
             if (dayKey(now).equals(skipDay) && skipped.contains(pg.url.trim())) continue;
-            if (pg.alt && (dow >= 5 || dow == 0)) {      // Sat, Sun, and the Monday after the weekend
+            Long until = skipUntil.get(pg.url.trim());
+            if (until != null && now.getTimeInMillis() < until) continue;
+            if (pg.kid) {
+                if (!kidHere(dow, minuteOfDay(now) < 12 * 60, epochDay)) continue;
+            } else if (pg.alt && (dow >= 5 || dow == 0)) {      // Sat, Sun, and the Monday after the weekend
                 long friday = dow == 0 ? epochDay - 3 : epochDay - (dow - 4);
                 if (Math.floorMod((friday - WEEKEND_ANCHOR) / 7, 2L) != 0) continue;
             }

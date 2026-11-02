@@ -26,7 +26,7 @@ public class SettingsActivity extends Activity {
     /** The widgets of one page card. */
     private static final class PageRow {
         LinearLayout box;
-        CheckBox on, alt;
+        CheckBox on, alt, kid;
         EditText name, url;
         ToggleButton[] days;
     }
@@ -281,6 +281,10 @@ public class SettingsActivity extends Activity {
         r.alt.setText("Lør–man kun hver anden uge (Alex' weekender)");
         r.alt.setChecked(p.alt);
         r.box.addView(r.alt);
+        r.kid = new CheckBox(this);
+        r.kid.setText("Børneside: vises morgener hos Far og eftermiddage hos Far (følger 2-2-3, ignorerer ugedage)");
+        r.kid.setChecked(p.kid);
+        r.box.addView(r.kid);
 
         del.setOnClickListener(v -> { pageList.removeView(r.box); pages.remove(r); });
         pages.add(r);
@@ -341,7 +345,7 @@ public class SettingsActivity extends Activity {
         for (PageRow r : pages) {
             String u = r.url.getText().toString().trim();
             if (u.isEmpty()) continue;
-            cfg.pages.add(new Config.Page(r.name.getText().toString().trim(), u, r.on.isChecked(), mask(r.days), r.alt.isChecked()));
+            cfg.pages.add(new Config.Page(r.name.getText().toString().trim(), u, r.on.isChecked(), mask(r.days), r.alt.isChecked(), r.kid.isChecked()));
         }
         try { cfg.seconds = Math.max(5, Math.min(3600, Integer.parseInt(seconds.getText().toString().trim()))); }
         catch (NumberFormatException e) { cfg.seconds = 60; }

@@ -121,7 +121,9 @@ public class MainActivity extends Activity {
         private final MainActivity a;
         private final Slot slot;
         Bridge(MainActivity a, Slot slot) { this.a = a; this.slot = slot; }
-        @JavascriptInterface public void skip() { a.runOnUiThread(() -> a.skipSlot(slot)); }
+        @JavascriptInterface public void skip() { a.runOnUiThread(() -> a.skipSlot(slot, 0)); }
+        /** Leave this page out until the given minute of today (e.g. 720 = 12:00): the children are not here this morning but come after school. */
+        @JavascriptInterface public void skipUntil(int minuteOfDay) { a.runOnUiThread(() -> a.skipSlot(slot, minuteOfDay)); }
         /** The child ticked a chore on or off: {"v":1,"d":date,"c":child,"t":chore,"on":bool,"at":ms}; queued and sent to GitHub. */
         @JavascriptInterface public void report(String json) { Reporter.enqueue(a.getApplicationContext(), json); }
     }
@@ -206,12 +208,18 @@ public class MainActivity extends Activity {
     }
 
     /** The page told us it should not be shown today. */
-    void skipSlot(Slot s) {
+    void skipSlot(Slot s, int untilMinute) {
         if (!s.alive) return;
         Calendar now = Calendar.getInstance();
         List<String> before = cfg.activeUrls(now);
         int pos = before.indexOf(s.url);
-        Config.skipToday(this, s.url, now);
+        if (untilMinute > 0 && untilMinute <= 24 * 60) {
+            Calendar until = (Calendar) now.clone();
+            until.set(Calendar.HOUR_OF_DAY, untilMinute / 60); until.set(Calendar.MINUTE, untilMinute % 60);
+            until.set(Calendar.SECOND, 0); until.set(Calendar.MILLISECOND, 0);
+            if (until.getTimeInMillis() > now.getTimeInMillis()) Config.skipUntil(this, s.url, until.getTimeInMillis());
+            else Config.skipToday(this, s.url, now);
+        } else Config.skipToday(this, s.url, now);
         cfg = Config.load(this);
         boolean wasCurrent = current == s;
         slots.remove(s.url);

@@ -68,32 +68,43 @@ public class ConfigTest {
     static void maxRota() {
         Config c = new Config();
         c.pages = Config.defaults();
-        // Alex' weekends: 30 Oct, then every 14 days (13 Nov, 27 Nov ...)
-        // The kids' pages show the mornings they wake at Alex': Thu, Fri every week; Sat, Sun and the Monday after only in his weekends.
-        String[][] cases = { {"2026-10-30", "true"}, {"2026-10-31", "true"}, {"2026-11-01", "true"}, {"2026-11-02", "true"},
-            {"2026-11-03", "false"}, {"2026-11-04", "false"}, {"2026-11-05", "true"}, {"2026-11-06", "true"}, {"2026-11-07", "false"},
-            {"2026-11-08", "false"}, {"2026-11-09", "false"}, {"2026-11-13", "true"}, {"2026-11-15", "true"}, {"2026-11-16", "true"},
-            {"2026-11-20", "true"}, {"2026-11-21", "false"}, {"2026-11-27", "true"} };
+        String max = "https://claude.ai/artifact/KiQpc6K2kUgfxcV85DhPoX", laura = "https://claude.ai/artifact/JT6RpxNhYivhfSDzp94NTo", stella = "https://claude.ai/artifact/9rZRLiR3fGSjjZoXP1dPx7";
+        // Alex' weekends: Fri 30 Oct, 13 Nov, 27 Nov. The kids' pages show in the MORNING when they woke at Alex' and in the AFTERNOON when they are with him.
+        // {date, morning (07:00), afternoon (16:00)} - checked against the real calendar of 1-6 Nov (Mon 2 morning Alex, afternoon Karen; Wed afternoon Alex; Fri morning Alex).
+        String[][] cases = { {"2026-10-30", "true", "true"}, {"2026-10-31", "true", "true"}, {"2026-11-01", "true", "true"}, {"2026-11-02", "true", "false"},
+            {"2026-11-03", "false", "false"}, {"2026-11-04", "false", "true"}, {"2026-11-05", "true", "true"}, {"2026-11-06", "true", "false"},
+            {"2026-11-07", "false", "false"}, {"2026-11-08", "false", "false"}, {"2026-11-09", "false", "false"},
+            {"2026-11-13", "true", "true"}, {"2026-11-15", "true", "true"}, {"2026-11-16", "true", "false"}, {"2026-11-18", "false", "true"}, {"2026-11-20", "true", "false"}, {"2026-11-27", "true", "true"} };
         for (String[] k : cases) {
-            List<String> urls = c.activeUrls(at(k[0], "12:00"));
-            eq("max shown " + k[0], Boolean.parseBoolean(k[1]), urls.contains("https://claude.ai/artifact/KiQpc6K2kUgfxcV85DhPoX"));
-            eq("laura follows max " + k[0], Boolean.parseBoolean(k[1]), urls.contains("https://claude.ai/artifact/JT6RpxNhYivhfSDzp94NTo"));
-            eq("stella follows max " + k[0], Boolean.parseBoolean(k[1]), urls.contains("https://claude.ai/artifact/9rZRLiR3fGSjjZoXP1dPx7"));
-            eq("alex shown " + k[0], true, urls.contains("https://claude.ai/artifact/18FB2Uw8GYtvVSfGyvVSzu"));
+            for (int part = 0; part < 2; part++) {
+                boolean want = Boolean.parseBoolean(k[1 + part]);
+                List<String> urls = c.activeUrls(at(k[0], part == 0 ? "07:00" : "16:00"));
+                String when = k[0] + (part == 0 ? " morning" : " afternoon");
+                eq("max shown " + when, want, urls.contains(max));
+                eq("laura follows max " + when, want, urls.contains(laura));
+                eq("stella follows max " + when, want, urls.contains(stella));
+                eq("alex shown " + when, true, urls.contains("https://claude.ai/artifact/18FB2Uw8GYtvVSfGyvVSzu"));
+            }
         }
         eq("old saved kid default migrates", Config.KID_DAYS, Config.migrateDays(Config.WED_TO_SUN, true));
         eq("other saved days stay", Config.WEEKDAYS, Config.migrateDays(Config.WEEKDAYS, true));
-        eq("madplan off by default", false, c.activeUrls(at("2026-11-04", "12:00")).contains("https://claude.ai/artifact/VJGXEVNnJNJfAyL3GiSCVE"));
+        eq("madplan off by default", false, c.activeUrls(at("2026-11-04", "16:00")).contains("https://claude.ai/artifact/VJGXEVNnJNJfAyL3GiSCVE"));
     }
 
     static void skipAndDim() {
         Config c = new Config();
         c.pages = Config.defaults();
-        Calendar wed = at("2026-11-05", "12:00");
+        Calendar wed = at("2026-11-05", "16:00");
         c.skipDay = Config.dayKey(wed);
         c.skipped.add("https://claude.ai/artifact/KiQpc6K2kUgfxcV85DhPoX");
         eq("skipped page hidden today", false, c.activeUrls(wed).contains("https://claude.ai/artifact/KiQpc6K2kUgfxcV85DhPoX"));
-        eq("skip ends next day", true, c.activeUrls(at("2026-11-06", "12:00")).contains("https://claude.ai/artifact/KiQpc6K2kUgfxcV85DhPoX"));
+        eq("skip ends next day", true, c.activeUrls(at("2026-11-06", "07:00")).contains("https://claude.ai/artifact/KiQpc6K2kUgfxcV85DhPoX"));
+        c.skipDay = ""; c.skipped.clear();
+        Calendar fri = at("2026-11-06", "07:00");
+        c.skipUntil.put("https://claude.ai/artifact/KiQpc6K2kUgfxcV85DhPoX", at("2026-11-06", "12:00").getTimeInMillis());
+        eq("skipUntil hides before the time", false, c.activeUrls(fri).contains("https://claude.ai/artifact/KiQpc6K2kUgfxcV85DhPoX"));
+        c.skipUntil.put("https://claude.ai/artifact/KiQpc6K2kUgfxcV85DhPoX", at("2026-11-05", "12:00").getTimeInMillis());
+        eq("skipUntil ends", true, c.activeUrls(fri).contains("https://claude.ai/artifact/KiQpc6K2kUgfxcV85DhPoX"));
         c.dimOn = true; c.dimFrom = 20 * 60; c.dimTo = 6 * 60;
         eq("dim 21:00", true, c.isDim(at("2026-11-04", "21:00")));
         eq("dim 05:00", true, c.isDim(at("2026-11-04", "05:00")));
