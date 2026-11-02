@@ -146,7 +146,7 @@ public class MainActivity extends Activity {
         w.setVisibility(View.INVISIBLE);
         s.web = w;
         stage.addView(w, new FrameLayout.LayoutParams(-1, -1));
-        w.addJavascriptInterface(new ListsBridge(this, w), "Lists");
+        if (Config.LISTER_URL.equals(url == null ? "" : url.trim())) w.addJavascriptInterface(new ListsBridge(this, w), "Lists");   // only the built-in page may touch the lists (never claude.ai pages)
         w.loadUrl(Config.realUrl(url));
         return s;
     }
