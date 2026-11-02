@@ -78,6 +78,10 @@ ul.rows { list-style: none; margin: 0; padding: 0; display: grid; gap: .4rem; }
 table { width: 100%; border-collapse: collapse; font-size: .95rem; font-variant-numeric: tabular-nums; }
 td { padding: .4rem 0; border-top: 1px solid var(--line); } td:last-child { text-align: right; color: var(--muted); }
 
+/* phone app (?app): the native bottom bar switches the tab, so the page's own tabs go */
+body.app .tabs, body.app #toplink { display: none; }
+body.app { padding-block: .6rem 1.2rem; }
+
 /* wide screen (fridge tablet, landscape): two columns, no tabs, bigger text */
 @media (min-width: 900px) {
   html { font-size: clamp(100%, 1.9vh + 40%, 135%); }
@@ -119,6 +123,7 @@ const todayStr = () => iso(new Date());
 const hash = s => { let h = 5381; for (const c of s) h = ((h << 5) + h + c.codePointAt(0)) >>> 0; return h.toString(36); };
 const newId = () => Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 6);
 const wideMq = window.matchMedia("(min-width: 900px)");
+if (/[?&]app\b/.test(location.search)) document.body.classList.add("app");
 
 // --- bridge ---
 const pending = new Map(); let seq = 0;

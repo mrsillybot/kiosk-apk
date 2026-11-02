@@ -279,15 +279,7 @@ public class MainActivity extends Activity {
         updateOffline();
     }
 
-    /** Hides the Claude bar on top of an artifact page (the shell has a built-in data-header-hidden switch). */
-    private static final String HIDE_BAR_JS = "(function(){var d=document.documentElement;d.setAttribute('data-header-hidden','');"
-        + "if(!document.getElementById('kiosk-css')){var s=document.createElement('style');s.id='kiosk-css';"
-        + "s.textContent='#hdr,#hdr-degraded,#top-edge{display:none!important}body>main{top:0!important;inset:0!important}';"
-        + "document.head.appendChild(s);}})();";
-
-    static void hideClaudeBar(WebView v, String url) {
-        if (url != null && url.contains("claude.ai/")) v.evaluateJavascript(HIDE_BAR_JS, null);
-    }
+    static void hideClaudeBar(WebView v, String url) { ClaudeBar.hide(v, url); }
 
     /** Inside a window, or briefly after someone woke the tablet / touched the black screen. */
     private boolean isOn() {

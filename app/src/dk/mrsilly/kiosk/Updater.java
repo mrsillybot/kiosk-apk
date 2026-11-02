@@ -59,11 +59,12 @@ final class Updater {
                 }
                 return "Slå 'Installér ukendte apps' til for appen og tryk igen";
             }
-            JSONObject v = new JSONObject(new String(download(BASE + "version.json"), "UTF-8"));
+            boolean phone = c.getPackageName().endsWith(".phone");
+            JSONObject v = new JSONObject(new String(download(BASE + (phone ? "phone-version.json" : "version.json")), "UTF-8"));
             int have = installed(c), latest = v.getInt("versionCode");
             if (latest <= have) return "Du har den nyeste version (v" + have + ")";
             File apk = new File(c.getCacheDir(), "update.apk");
-            try (OutputStream out = new FileOutputStream(apk)) { out.write(download(BASE + v.optString("apk", "kiosk.apk"))); }
+            try (OutputStream out = new FileOutputStream(apk)) { out.write(download(BASE + v.optString("apk", phone ? "phone.apk" : "kiosk.apk"))); }
             install(c, apk);
             return "Henter v" + latest + " – tryk Opdatér når Android spørger";
         } catch (Exception e) {
