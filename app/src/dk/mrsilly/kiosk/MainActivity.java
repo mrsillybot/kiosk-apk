@@ -146,7 +146,8 @@ public class MainActivity extends Activity {
         w.setVisibility(View.INVISIBLE);
         s.web = w;
         stage.addView(w, new FrameLayout.LayoutParams(-1, -1));
-        w.loadUrl(url);
+        w.addJavascriptInterface(new ListsBridge(this, w), "Lists");
+        w.loadUrl(Config.realUrl(url));
         return s;
     }
 
@@ -173,7 +174,7 @@ public class MainActivity extends Activity {
                 return;
             }
             s.failed = true;
-            handler.postDelayed(() -> { if (s.alive && !s.ready && active) s.web.loadUrl(s.url); }, 20000);
+            handler.postDelayed(() -> { if (s.alive && !s.ready && active) s.web.loadUrl(Config.realUrl(s.url)); }, 20000);
             updateOffline();
             return;
         }

@@ -1,0 +1,273 @@
+<!doctype html>
+<html lang="da"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>Lister</title>
+<style>
+html, body { margin: 0; }
+/* Layout: phone = one column with three tabs (Indkøb · Opgaver · Tal); a wide screen (the fridge tablet, landscape) = two columns side by side, Indkøb left, Opgaver right,
+   no tabs, each with its add field at the top. Rows are big tap targets; done rows go quiet at the bottom instead of disappearing. */
+:root {
+  --bg: #f2f4ef; --card: #fbfcf9; --ink: #1b2420; --muted: #66726b; --line: #dfe5dc;
+  --accent: #2f7f77; --accent-soft: #dcefeb; --on: #ffffff; --warn: #b4651f; --warn-soft: #f6e6d4; --ok: #3a8a4f;
+  --display: "Bricolage Grotesque", "Trebuchet MS", system-ui, sans-serif;
+  --body: "Instrument Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #121815; --card: #1a221e; --ink: #e9efe9; --muted: #98a59d; --line: #2a352f;
+  --accent: #5cc3b6; --accent-soft: #1b3330; --on: #0f1513; --warn: #e3a25c; --warn-soft: #3a2c1b; --ok: #6fc283; color-scheme: dark; } }
+:root[data-theme="dark"] {
+  --bg: #121815; --card: #1a221e; --ink: #e9efe9; --muted: #98a59d; --line: #2a352f;
+  --accent: #5cc3b6; --accent-soft: #1b3330; --on: #0f1513; --warn: #e3a25c; --warn-soft: #3a2c1b; --ok: #6fc283; color-scheme: dark; }
+* { box-sizing: border-box; }
+html { font-size: clamp(100%, 87.5% + .4vw, 118.75%); -webkit-text-size-adjust: 100%; }
+body { background: var(--bg); color: var(--ink); font: 1rem/1.4 var(--body); margin: 0; padding-block: 1rem 3rem;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+main { max-width: 42rem; margin: 0 auto; display: grid; gap: 1rem; }
+h1, h2, h3 { font-family: var(--display); margin: 0; text-wrap: balance; }
+h1 { font-size: 1.7rem; }
+p { margin: 0; }
+button { font: inherit; color: inherit; }
+:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+
+.top { display: flex; align-items: baseline; justify-content: space-between; gap: .8rem; flex-wrap: wrap; }
+.sub { color: var(--muted); font-size: .95rem; }
+.tabs { display: grid; grid-template-columns: repeat(3, 1fr); gap: .35rem; background: var(--line); padding: .25rem; border-radius: 14px; }
+.tabs a { text-align: center; padding: .6rem .4rem; border-radius: 11px; color: var(--muted); text-decoration: none; font-weight: 600; }
+.tabs a[aria-current="page"] { background: var(--card); color: var(--ink); box-shadow: 0 1px 2px rgba(0,0,0,.12); }
+.toplink { color: var(--muted); font-weight: 600; text-decoration: none; padding: .3rem .6rem; border-radius: 10px; border: 1px solid var(--line); display: none; }
+
+.cols { display: grid; gap: 1rem; align-items: start; }
+.col { display: grid; gap: .8rem; align-content: start; min-width: 0; }
+.colhead { display: flex; align-items: baseline; justify-content: space-between; gap: .6rem; padding-inline: .2rem; }
+.colhead h2 { font-size: 1.35rem; }
+.group { background: var(--card); border-radius: 18px; padding: .9rem 1rem 1rem; display: grid; gap: .5rem; border: 1px solid var(--line); }
+.group > header { display: flex; justify-content: space-between; align-items: baseline; gap: .6rem; }
+.group h3 { font-size: 1.05rem; }
+.count { color: var(--muted); font-size: .9rem; font-variant-numeric: tabular-nums; }
+ul.rows { list-style: none; margin: 0; padding: 0; display: grid; gap: .4rem; }
+.row { width: 100%; display: flex; align-items: center; gap: .85rem; min-height: 3.2rem; padding: .5rem .7rem; border: 0; border-radius: 12px;
+  background: var(--bg); text-align: left; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.box { width: 1.7rem; height: 1.7rem; border-radius: 8px; border: 2px solid var(--muted); display: grid; place-items: center; flex: none; color: transparent; font-weight: 700; }
+.row[aria-checked="true"] { background: var(--accent-soft); }
+.row[aria-checked="true"] .box { background: var(--accent); border-color: var(--accent); color: var(--on); }
+.row[aria-checked="true"] .t { text-decoration: line-through; color: var(--muted); }
+.t { flex: 1; min-width: 0; overflow-wrap: anywhere; font-weight: 500; }
+.t small { display: block; color: var(--muted); font-weight: 400; font-size: .85rem; }
+.who { font-size: .8rem; font-weight: 600; color: var(--accent); background: var(--accent-soft); padding: .1rem .55rem; border-radius: 99px; flex: none; }
+.row[aria-checked="true"] .who { background: var(--card); }
+
+.add { display: flex; gap: .5rem; flex-wrap: wrap; }
+.add input[type="text"] { flex: 1 1 10rem; min-width: 0; font: inherit; padding: .75rem .85rem; border-radius: 12px; border: 1px solid var(--line); background: var(--card); color: var(--ink); }
+.btn { border: 0; border-radius: 12px; padding: .75rem 1.1rem; background: var(--accent); color: var(--on); font-weight: 600; cursor: pointer; }
+.btn.quiet { background: transparent; color: var(--muted); border: 1px solid var(--line); }
+.chips { display: flex; flex-wrap: wrap; gap: .35rem; flex-basis: 100%; }
+.chip { border: 1px solid var(--line); background: var(--card); color: var(--muted); border-radius: 99px; padding: .3rem .75rem; font-size: .9rem; font-weight: 600; cursor: pointer; }
+.chip[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--on); }
+.empty { background: var(--card); border: 1px dashed var(--line); border-radius: 18px; padding: 1.2rem; color: var(--muted); display: grid; gap: .4rem; }
+.empty b { color: var(--ink); font-family: var(--display); font-size: 1.1rem; }
+.note { background: var(--warn-soft); color: var(--warn); border-radius: 12px; padding: .6rem .8rem; font-size: .92rem; }
+.done-msg { color: var(--ok); font-weight: 600; }
+
+/* numbers */
+.kid { display: grid; gap: .6rem; }
+.kid .big { font: 700 2rem/1 var(--display); font-variant-numeric: tabular-nums; }
+.kid .big small { font: 500 .95rem var(--body); color: var(--muted); }
+.dots { display: grid; grid-template-columns: repeat(14, 1fr); gap: .25rem; }
+.dot { aspect-ratio: 1; border-radius: 6px; background: var(--line); }
+.dot.all { background: var(--ok); } .dot.part { background: var(--warn); } .dot.none { background: var(--warn-soft); border: 1px solid var(--warn); }
+.legend { display: flex; flex-wrap: wrap; gap: .3rem 1rem; color: var(--muted); font-size: .85rem; }
+.legend i { display: inline-block; width: .8rem; height: .8rem; border-radius: 4px; vertical-align: -1px; margin-right: .3rem; }
+table { width: 100%; border-collapse: collapse; font-size: .95rem; font-variant-numeric: tabular-nums; }
+td { padding: .4rem 0; border-top: 1px solid var(--line); } td:last-child { text-align: right; color: var(--muted); }
+
+/* wide screen (fridge tablet, landscape): two columns, no tabs, bigger text */
+@media (min-width: 900px) {
+  html { font-size: clamp(100%, 1.9vh + 40%, 135%); }
+  body { padding-block: 1rem 2rem; }
+  main.wide { max-width: none; }
+  main.wide .tabs { display: none; }
+  main.wide .toplink { display: inline-block; }
+  main.wide .cols { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 1.4rem; }
+}
+</style>
+</head><body>
+<main id="app">
+  <div class="top"><h1>Lister</h1><span><span class="sub" id="status">Henter …</span> <a class="toplink" id="toplink" href="#tal">Tal</a></span></div>
+  <nav class="tabs" aria-label="Faner">
+    <a href="#indkob" data-tab="indkob">Indkøb</a>
+    <a href="#opgaver" data-tab="opgaver">Opgaver</a>
+    <a href="#tal" data-tab="tal">Tal</a>
+  </nav>
+  <section id="view"></section>
+</main>
+<script>
+// Built into the kiosk app (and the phone's Lister icon). State lives in the lists repo (docs/lists.md in life-automations): one small JSON file per thing.
+// The app's `Lists` bridge reads the repo as one snapshot and writes one file at a time; this page keeps what it read in `files` and polls every 30 s.
+const SECTIONS = ["Frugt og grønt", "Kød og fisk", "Mejeri", "Tørvarer", "Frost", "Online", "Andet"];
+const KIDS = ["Max", "Laura", "Stella"];
+const WHO = ["Alex", "Karen", "Max", "Laura", "Stella"];
+const DA_DAYS = ["søndag", "mandag", "tirsdag", "onsdag", "torsdag", "fredag", "lørdag"];
+const GUESS = [
+  ["Mejeri", ["mælk", "ost", "smør", "yoghurt", "skyr", "fløde", "æg", "creme fraiche", "kvark", "cottage", "mozzarella", "feta"]],
+  ["Frugt og grønt", ["banan", "æble", "pære", "appelsin", "citron", "lime", "tomat", "agurk", "salat", "spinat", "løg", "hvidløg", "kartof", "gulerod", "peberfrugt", "broccoli", "blomkål", "avocado", "svampe", "champignon", "squash", "kål", "bær", "drue", "mango", "ingefær", "purløg", "persille", "basilikum", "frugt", "grønt"]],
+  ["Kød og fisk", ["kød", "hakket", "kylling", "bacon", "pølse", "skinke", "laks", "torsk", "rejer", "fisk", "bøf", "svin", "okse", "kalkun", "frikadelle", "tun", "flæsk"]],
+  ["Frost", ["frost", "is ", "ærter", "majs", "pizza", "pommes"]],
+  ["Tørvarer", ["pasta", "ris", "mel", "sukker", "havregryn", "müsli", "brød", "toast", "ketchup", "olie", "eddike", "bønner", "linser", "dåse", "bouillon", "krydderi", "salt", "peber", "nudler", "kaffe", "te ", "knækbrød", "tortilla", "kokosmælk", "pesto", "sauce", "nødder", "mandler", "chips", "kiks", "müslibar", "protein"]],
+];
+const sectionFor = t => { const s = " " + t.toLowerCase() + " "; for (const [sec, words] of GUESS) if (words.some(w => s.includes(w))) return sec; return "Andet"; };
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const iso = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+const todayStr = () => iso(new Date());
+const hash = s => { let h = 5381; for (const c of s) h = ((h << 5) + h + c.codePointAt(0)) >>> 0; return h.toString(36); };
+const newId = () => Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 6);
+const wideMq = window.matchMedia("(min-width: 900px)");
+
+// --- bridge ---
+const pending = new Map(); let seq = 0;
+window.__listsDone = (id, ok, res) => { const p = pending.get(id); pending.delete(id); if (!p) return; ok ? p.resolve(JSON.parse(res)) : p.reject(new Error(res)); };
+const call = (op, arg) => new Promise((resolve, reject) => {
+  if (!window.Lists) return reject(new Error("Åbn Lister i kiosk-appen eller Lister-ikonet på telefonen."));
+  const id = ++seq; pending.set(id, { resolve, reject }); window.Lists.call(id, op, JSON.stringify(arg || {}));
+});
+
+// --- state: path -> {sha, data} ---
+let files = new Map(), plan = { days: {} }, loaded = false, failed = "", note = "", taskWho = "", busy = 0, lastLoad = 0;
+const view = document.getElementById("view"), statusEl = document.getElementById("status"), appEl = document.getElementById("app");
+const parse = c => { try { return JSON.parse(c); } catch (e) { return null; } };
+
+const under = dir => [...files].filter(([p, f]) => p.startsWith(dir) && f.data && !f.data.archived).map(([p, f]) => ({ path: p, ...f.data }));
+const items = () => under("indkoeb/"), tasks = () => under("opgaver/");
+const logs = () => { const m = new Map(); for (const [p, f] of files) { const x = /^log\/(\d{4}-\d{2}-\d{2})\/(Max|Laura|Stella)-/.exec(p); if (x && f.data && f.data.done !== false && f.data.chore) m.set(`${x[1]}_${x[2]}_${hash(f.data.chore)}`, true); } return m; };
+const logPath = (date, kid, chore) => `log/${date}/${kid}-${hash(chore)}.json`;
+const dayChores = date => plan.days?.[date] || {};
+const ordered = rows => rows.slice().sort((a, b) => (!!a.done - !!b.done) || ((a.order ?? a.at ?? 0) - (b.order ?? b.at ?? 0)) || String(a.text).localeCompare(String(b.text), "da"));
+
+async function refresh() {
+  try {
+    const r = await call("snapshot");
+    const next = new Map();
+    for (const [p, f] of Object.entries(r.files || {})) next.set(p, { sha: f.sha, data: parse(f.c) });
+    files = next; const pl = files.get("plan.json")?.data; if (pl?.days) plan = pl;
+    loaded = true; lastLoad = Date.now(); failed = "";
+  } catch (e) { failed = String(e.message || e); }
+  render();
+}
+// write one file: create (no sha) or update (sha we last read); a stale sha means someone changed it: re-read once and redo
+async function save(path, mutate, fresh) {
+  busy++;
+  try {
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const cur = files.get(path); const data = mutate(cur?.data ? { ...cur.data } : fresh);
+      try {
+        const r = await call("put", { path, content: JSON.stringify(data, null, 1) + "\n", sha: cur?.sha || "" });
+        files.set(path, { sha: r.sha, data }); render(); return;
+      } catch (e) { if (attempt === 1) throw e; await refresh(); }
+    }
+  } catch (e) { note = "Kunne ikke gemme. Prøv igen."; setTimeout(() => { note = ""; render(); }, 4000); }
+  finally { busy--; render(); }
+}
+
+function shoppingHtml() {
+  const all = items(), open = all.filter(i => !i.done), bought = all.length - open.length;
+  const by = {}; for (const i of all) (by[i.section || "Andet"] ||= []).push(i);
+  const order = [...SECTIONS, ...Object.keys(by).filter(s => !SECTIONS.includes(s))].filter(s => by[s]);
+  let html = `<form class="add" id="addform"><input type="text" id="newitem" placeholder="Tilføj vare" autocomplete="off" aria-label="Tilføj vare"><button class="btn" type="submit">Tilføj</button></form>`;
+  if (!all.length) html += `<div class="empty"><b>Ingen varer endnu</b><p>Skriv en vare ovenfor, eller lad Mad-rummet lægge ugens liste her.</p></div>`;
+  for (const s of order) {
+    const rows = ordered(by[s]);
+    html += `<section class="group"><header><h3>${esc(s)}</h3><span class="count">${rows.filter(r => !r.done).length} / ${rows.length}</span></header><ul class="rows">` +
+      rows.map(r => `<li><button class="row" role="checkbox" aria-checked="${!!r.done}" data-item="${esc(r.path)}"><span class="box" aria-hidden="true">✓</span><span class="t">${esc(r.text)}${r.qty || r.note ? `<small>${esc([r.qty, r.note].filter(Boolean).join(" · "))}</small>` : ""}</span></button></li>`).join("") + `</ul></section>`;
+  }
+  if (bought) html += `<button class="btn quiet" id="clearitems" type="button">Ryd ${bought} købte</button>`;
+  return { html, open: open.length };
+}
+function choresHtml() {
+  const td = dayChores(todayStr()), kids = KIDS.filter(k => td[k]?.length), lg = logs();
+  return kids.map(k => {
+    const list = td[k], done = list.filter(c => lg.has(`${todayStr()}_${k}_${hash(c)}`)).length;
+    return `<section class="group"><header><h3>${esc(k)}</h3><span class="count ${done === list.length ? "done-msg" : ""}">${done === list.length ? "Alt klaret" : `${done} / ${list.length}`}</span></header><ul class="rows">` +
+      list.map(c => `<li><button class="row" role="checkbox" aria-checked="${lg.has(`${todayStr()}_${k}_${hash(c)}`)}" data-kid="${esc(k)}" data-chore="${esc(c)}"><span class="box" aria-hidden="true">✓</span><span class="t">${esc(c)}</span></button></li>`).join("") + `</ul></section>`;
+  }).join("");
+}
+function tasksHtml() {
+  const all = tasks(), open = all.filter(t => !t.done), done = all.length - open.length;
+  let html = `<form class="add" id="addtask"><input type="text" id="newtask" placeholder="Tilføj opgave" autocomplete="off" aria-label="Tilføj opgave"><button class="btn" type="submit">Tilføj</button>` +
+    `<div class="chips" role="group" aria-label="Hvem">${WHO.map(w => `<button type="button" class="chip" data-who="${w}" aria-pressed="${taskWho === w}">${w}</button>`).join("")}</div></form>`;
+  if (all.length) {
+    html += `<section class="group"><header><h3>Opgaver</h3><span class="count">${open.length} / ${all.length}</span></header><ul class="rows">` +
+      ordered(all).map(t => `<li><button class="row" role="checkbox" aria-checked="${!!t.done}" data-task="${esc(t.path)}"><span class="box" aria-hidden="true">✓</span><span class="t">${esc(t.text)}</span>${t.who ? `<span class="who">${esc(t.who)}</span>` : ""}</button></li>`).join("") + `</ul></section>`;
+    if (done) html += `<button class="btn quiet" id="cleartasks" type="button">Ryd ${done} færdige</button>`;
+  }
+  return html;
+}
+function statsHtml() {
+  const days = []; for (let i = 13; i >= 0; i--) { const d = new Date(); d.setDate(d.getDate() - i); days.push(iso(d)); }
+  const lg = logs(), today = todayStr(); let html = "", any = false;
+  for (const k of KIDS) {
+    let exp = 0, got = 0; const perChore = {};
+    const dots = days.map(d => {
+      const list = dayChores(d)[k] || []; if (!list.length) return `<span class="dot" title="${d}: ingen opgaver"></span>`;
+      const n = list.filter(c => lg.has(`${d}_${k}_${hash(c)}`)).length;
+      if (d <= today) { exp += list.length; got += n; for (const c of list) { const p = (perChore[c] ||= [0, 0]); p[1]++; if (lg.has(`${d}_${k}_${hash(c)}`)) p[0]++; } }
+      const cls = n === list.length ? "all" : n ? "part" : (d < today ? "none" : "");
+      return `<span class="dot ${cls}" title="${d}: ${n} af ${list.length}"></span>`;
+    }).join("");
+    if (!exp) continue; any = true;
+    html += `<section class="group kid"><header><h3>${esc(k)}</h3></header><p class="big">${Math.round(100 * got / exp)} %<small> &nbsp;${got} af ${exp} opgaver</small></p><div class="dots" role="img" aria-label="Seneste 14 dage">${dots}</div>` +
+      `<table>${Object.entries(perChore).map(([c, [g, e]]) => `<tr><td>${esc(c)}</td><td>${g} af ${e}</td></tr>`).join("")}</table></section>`;
+  }
+  if (!any) return `<div class="empty"><b>Ingen tal endnu</b><p>Tallene kommer efter de første dage med opgaver.</p></div>`;
+  return html + `<p class="legend"><span><i style="background:var(--ok)"></i>alt klaret</span><span><i style="background:var(--warn)"></i>delvist</span><span><i style="background:var(--warn-soft);border:1px solid var(--warn)"></i>ikke gjort</span></p>`;
+}
+const tab = () => { const h = location.hash.slice(1); return ["indkob", "opgaver", "tal"].includes(h) ? h : "indkob"; };
+
+function render() {
+  const wide = wideMq.matches, t = tab();
+  appEl.classList.toggle("wide", wide);
+  document.querySelectorAll(".tabs a").forEach(a => { if (a.dataset.tab === t) a.setAttribute("aria-current", "page"); else a.removeAttribute("aria-current"); });
+  const link = document.getElementById("toplink"); link.textContent = t === "tal" ? "Tilbage" : "Tal"; link.setAttribute("href", t === "tal" ? "#indkob" : "#tal");
+  if (failed && !loaded) { statusEl.textContent = ""; view.innerHTML = `<div class="note">${esc(failed)}</div>`; return; }
+  if (!loaded) { statusEl.textContent = "Henter …"; return; }
+  const typed = { newitem: document.getElementById("newitem")?.value || "", newtask: document.getElementById("newtask")?.value || "" };
+  const focus = document.activeElement?.id;
+  statusEl.textContent = (note || (failed ? "Kan ikke opdatere lige nu" : new Date().toLocaleDateString("da-DK", { weekday: "long", day: "numeric", month: "long" })));
+  if (t === "tal") { view.innerHTML = statsHtml(); return; }
+  const shop = shoppingHtml(), chores = choresHtml(), tk = tasksHtml();
+  if (wide) view.innerHTML = `<div class="cols"><div class="col"><div class="colhead"><h2>Indkøb</h2><span class="count">${shop.open} tilbage</span></div>${shop.html}</div><div class="col"><div class="colhead"><h2>Opgaver</h2></div>${chores}${tk}</div></div>`;
+  else if (t === "opgaver") view.innerHTML = `<div class="col">${chores || `<div class="empty"><b>Ingen børneopgaver i dag</b><p>De kommer kun de dage børnene er hos dig.</p></div>`}${tk}</div>`;
+  else view.innerHTML = `<div class="col">${shop.html}</div>`;
+  for (const id of ["newitem", "newtask"]) { const el = document.getElementById(id); if (el && typed[id]) el.value = typed[id]; }
+  if (focus === "newitem" || focus === "newtask") document.getElementById(focus)?.focus();
+}
+
+const toggleFile = path => { const cur = files.get(path)?.data; if (!cur) return; const on = !cur.done; save(path, d => ({ ...d, done: on, doneAt: on ? Date.now() : null })); };
+const clearDone = dir => { for (const [p, f] of files) if (p.startsWith(dir) && f.data?.done && !f.data.archived) save(p, d => ({ ...d, archived: true })); };
+function toggleChore(kid, chore) {
+  const date = todayStr(), path = logPath(date, kid, chore), cur = files.get(path)?.data, on = !(cur && cur.done !== false);
+  save(path, d => ({ ...d, chore, done: on, at: Date.now(), by: "Alex" }), { chore });
+}
+view.addEventListener("click", e => {
+  const row = e.target.closest(".row");
+  if (row?.dataset.item) return toggleFile(row.dataset.item);
+  if (row?.dataset.task) return toggleFile(row.dataset.task);
+  if (row?.dataset.kid) return toggleChore(row.dataset.kid, row.dataset.chore);
+  const chip = e.target.closest(".chip");
+  if (chip) { taskWho = taskWho === chip.dataset.who ? "" : chip.dataset.who; return render(); }
+  if (e.target.id === "clearitems") return clearDone("indkoeb/");
+  if (e.target.id === "cleartasks") return clearDone("opgaver/");
+});
+view.addEventListener("submit", e => {
+  e.preventDefault();
+  if (e.target.id === "addform") {
+    const inp = document.getElementById("newitem"), text = inp.value.trim(); if (!text) return; inp.value = "";
+    save(`indkoeb/${newId()}.json`, d => d, { text, section: sectionFor(text), done: false, doneAt: null, archived: false, by: "Alex", at: Date.now() });
+  } else if (e.target.id === "addtask") {
+    const inp = document.getElementById("newtask"), text = inp.value.trim(); if (!text) return; inp.value = "";
+    save(`opgaver/${newId()}.json`, d => d, { text, ...(taskWho ? { who: taskWho } : {}), done: false, doneAt: null, archived: false, by: "Alex", at: Date.now() }); taskWho = "";
+  }
+});
+window.addEventListener("hashchange", render);
+wideMq.addEventListener?.("change", render);
+window.__listerShown = () => { if (!busy) refresh(); };
+setInterval(() => { if (!busy && !document.hidden && !(document.activeElement && /INPUT/.test(document.activeElement.tagName))) refresh(); }, 30000);
+refresh();
+</script>
+</body></html>

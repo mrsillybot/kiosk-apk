@@ -132,16 +132,38 @@ public class ConfigTest {
         c.pages = Config.defaults();
         eq("lister in defaults", true, c.activeUrls(at("2026-11-04", "16:00")).contains(Config.LISTER_URL));
         eq("lister every day", true, c.activeUrls(at("2026-11-03", "16:00")).contains(Config.LISTER_URL));
-        eq("claude.ai allowed", true, LoginActivity.allowed("https://claude.ai/magic-link#abc"));
-        eq("subdomain allowed", true, LoginActivity.allowed("https://api.claude.ai/x"));
-        eq("lookalike refused", false, LoginActivity.allowed("https://claude.ai.evil.com/x"));
-        eq("http refused", false, LoginActivity.allowed("http://claude.ai/x"));
-        eq("google refused", false, LoginActivity.allowed("https://accounts.google.com/"));
-        eq("null refused", false, LoginActivity.allowed(null));
+        eq("built-in lister page", "file:///android_asset/lister.html", Config.realUrl("kiosk://lister"));
+        eq("other pages untouched", "https://claude.ai/artifact/x", Config.realUrl("https://claude.ai/artifact/x"));
+    }
+
+    static void listsRepo() throws Exception {
+        eq("git blob sha", "ce013625030ba8dba906f756967f9e9ca394464a", ListsRepo.blobSha("hello\n"));
+        eq("chore hash ascii", "3772q3", ListsRepo.hash("abc"));
+        eq("chore hash unicode", "14j5cjh", ListsRepo.hash("🫧 Tømme opper"));          // same value as the pages compute in JS
+        eq("write item", true, ListsRepo.writable("indkoeb/lq3k9x2a-7fd1.json"));
+        eq("write log", true, ListsRepo.writable("log/2026-11-04/Laura-14j5cjh.json"));
+        eq("no write outside", false, ListsRepo.writable("../x.json"));
+        eq("no write plan", false, ListsRepo.writable("plan.json"));
+        eq("no write unknown child", false, ListsRepo.writable("log/2026-11-04/Peter-abc.json"));
+        eq("read plan", true, ListsRepo.wanted("plan.json"));
+        eq("read readme no", false, ListsRepo.wanted("README.md"));
+        java.io.ByteArrayOutputStream bo = new java.io.ByteArrayOutputStream();
+        try (java.util.zip.ZipOutputStream z = new java.util.zip.ZipOutputStream(bo)) {
+            for (String[] f : new String[][] { {"o-r-abc/indkoeb/a.json", "{\"text\":\"Mælk\"}"}, {"o-r-abc/README.md", "hi"}, {"o-r-abc/plan.json", "{}"} }) {
+                z.putNextEntry(new java.util.zip.ZipEntry(f[0])); z.write(f[1].getBytes("UTF-8")); z.closeEntry();
+            }
+        }
+        java.util.Map<String, ListsRepo.Item> m = ListsRepo.readZip(new java.io.ByteArrayInputStream(bo.toByteArray()));
+        eq("zip keeps wanted only", 2, m.size());
+        eq("zip content", "{\"text\":\"Mælk\"}", m.get("indkoeb/a.json").content);
+        eq("zip sha is git sha", ListsRepo.blobSha("{\"text\":\"Mælk\"}"), m.get("indkoeb/a.json").sha);
+        String ev = "{\"v\":1,\"d\":\"2026-11-04\",\"c\":\"Laura\",\"t\":\"🫧 Tømme opper\",\"on\":true,\"at\":1793000000000}";
+        eq("report path", "log/2026-11-04/Laura-14j5cjh.json", Reporter.pathFor(ev));
+        eq("report content has done", true, Reporter.contentFor(ev).contains("\"done\": true"));
     }
 
     public static void main(String[] args) {
-        windows(); wrapAndNext(); roundTrip(); maxRota(); skipAndDim(); reporter(); listerAndLogin();
+        windows(); wrapAndNext(); roundTrip(); maxRota(); skipAndDim(); reporter(); listerAndLogin(); try { listsRepo(); } catch (Exception e) { e.printStackTrace(); failures++; }
         if (failures > 0) { System.out.println(failures + " failed"); System.exit(1); }
         System.out.println("ok: all kiosk logic tests passed");
     }

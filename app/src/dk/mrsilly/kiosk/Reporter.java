@@ -2,25 +2,20 @@ package dk.mrsilly.kiosk;
 
 import android.content.Context;
 import android.content.SharedPreferences;
-import java.io.OutputStream;
-import java.net.HttpURLConnection;
-import java.net.URL;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
-/** Sends what the children tick off (KioskBridge.report) as a comment on one GitHub issue, where tick picks it up.
- *  Reports wait in a small queue on the tablet until there is network and a token (Indstillinger). The token should be
- *  a fine-grained one for the one repo with only Issues: write. */
+/** Writes what the children tick off (KioskBridge.report) as a small file in the lists repo (docs/lists.md), where tick and the rooms read it.
+ *  Reports wait in a small queue on the tablet until there is network and a token (Indstillinger). The token is the lists-repo one (Contents: read and write). */
 final class Reporter {
-    static final String REPO = "mrsillybot/life-automations";
-    static final int ISSUE = 2;
     static final int MAX_QUEUE = 200;
     /** Exactly the shape kid.html writes with JSON.stringify; nothing else is accepted or sent. */
     private static final Pattern EVENT = Pattern.compile(
-        "\\{\"v\":1,\"d\":\"\\d{4}-\\d{2}-\\d{2}\",\"c\":\"(Max|Laura|Stella)\",\"t\":\"[^\"\\\\\\p{Cntrl}]{1,80}\",\"on\":(true|false),\"at\":\\d{10,14}\\}");
+        "\\{\"v\":1,\"d\":\"(\\d{4}-\\d{2}-\\d{2})\",\"c\":\"(Max|Laura|Stella)\",\"t\":\"([^\"\\\\\\p{Cntrl}]{1,80})\",\"on\":(true|false),\"at\":(\\d{10,14})\\}");
     private static boolean flushing = false;
 
     /** The event string if it is well formed, else null. */
@@ -78,19 +73,25 @@ final class Reporter {
         }).start();
     }
 
+    /** The file a report becomes in the lists repo: log/<date>/<child>-<hash of the chore>.json (docs/lists.md); null if malformed. */
+    static String pathFor(String event) {
+        Matcher m = event == null ? null : EVENT.matcher(event);
+        return m != null && m.matches() ? "log/" + m.group(1) + "/" + m.group(2) + "-" + ListsRepo.hash(m.group(3)) + ".json" : null;
+    }
+
+    /** The file body (the pattern already rules out quotes, backslashes and control characters in the chore text, so plain concatenation is safe JSON). */
+    static String contentFor(String event) {
+        Matcher m = event == null ? null : EVENT.matcher(event);
+        return m != null && m.matches()
+            ? "{\n \"chore\": \"" + m.group(3) + "\",\n \"at\": " + m.group(5) + ",\n \"done\": " + m.group(4) + ",\n \"by\": \"tablet\"\n}\n" : null;
+    }
+
     private static boolean post(String token, String event) {
         try {
-            HttpURLConnection h = (HttpURLConnection) new URL("https://api.github.com/repos/" + REPO + "/issues/" + ISSUE + "/comments").openConnection();
-            h.setConnectTimeout(10000); h.setReadTimeout(10000);
-            h.setRequestMethod("POST"); h.setDoOutput(true);
-            h.setRequestProperty("Authorization", "Bearer " + token);
-            h.setRequestProperty("Accept", "application/vnd.github+json");
-            h.setRequestProperty("Content-Type", "application/json; charset=utf-8");
-            byte[] body = new JSONObject().put("body", event).toString().getBytes("UTF-8");
-            try (OutputStream o = h.getOutputStream()) { o.write(body); }
-            int code = h.getResponseCode();
-            h.disconnect();
-            return code == 201;   // anything else (no network, bad token) keeps the report queued
-        } catch (Exception e) { return false; }
+            String path = pathFor(event), content = contentFor(event);
+            if (path == null || content == null || !ListsRepo.writable(path)) return true;   // never retry something that cannot be sent
+            ListsRepo.putLatest(token, path, content);
+            return true;
+        } catch (Exception e) { return false; }   // no network or a bad token: the report stays queued
     }
 }

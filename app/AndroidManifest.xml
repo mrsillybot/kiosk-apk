@@ -24,13 +24,18 @@
             </intent-filter>
         </activity>
         <activity
+            android:name=".ListerActivity"
+            android:exported="true"
+            android:label="Lister">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+        <activity
             android:name=".SettingsActivity"
             android:exported="false"
             android:label="Indstillinger" />
-        <activity
-            android:name=".LoginActivity"
-            android:exported="false"
-            android:label="Log ind" />
         <receiver android:name=".UpdateReceiver" android:exported="false" />
         <receiver android:name=".BootReceiver" android:exported="true">
             <intent-filter>

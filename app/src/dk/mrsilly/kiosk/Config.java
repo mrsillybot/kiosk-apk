@@ -77,7 +77,9 @@ final class Config {
                 boolean alt = o.optBoolean("alt", false), kid = o.optBoolean("kid", false);
                 int days = o.optInt("days", ALL_DAYS);
                 if (alt && (days == WED_TO_SUN || days == KID_DAYS)) { kid = true; days = ALL_DAYS; alt = false; }   // the earlier day-based kid defaults
-                cfg.pages.add(new Page(o.optString("name", ""), o.getString("url"), o.optBoolean("on", true), days, alt, kid));
+                String url = o.getString("url");
+                if (OLD_LISTER_URL.equals(url.trim())) url = LISTER_URL;
+                cfg.pages.add(new Page(o.optString("name", ""), url, o.optBoolean("on", true), days, alt, kid));
             }
         } catch (Exception ignored) { }
         if (!p.getBoolean("listerAdded", false)) {   // once: add Lister (indkøb + opgaver) to an existing install; deleting it later sticks
@@ -87,7 +89,13 @@ final class Config {
         return cfg;
     }
 
-    static final String LISTER_URL = "https://claude.ai/artifact/Y19nr4rD7ybJQxz6PsBtUX";
+    static final String LISTER_URL = "kiosk://lister";          // the built-in page (app/assets/lister.html), reads and writes the lists repo
+    static final String OLD_LISTER_URL = "https://claude.ai/artifact/Y19nr4rD7ybJQxz6PsBtUX";   // the claude.ai page of v10, dropped
+
+    /** What a WebView should load for a page URL: the built-in Lister page for kiosk://lister, everything else as is. */
+    static String realUrl(String url) {
+        return LISTER_URL.equals(url == null ? "" : url.trim()) ? "file:///android_asset/lister.html" : url;
+    }
 
     static String pagesJson(List<Page> pages) {
         JSONArray a = new JSONArray();
