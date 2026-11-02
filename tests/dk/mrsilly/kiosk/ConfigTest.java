@@ -127,8 +127,21 @@ public class ConfigTest {
         eq("oldest dropped", "e5", q.get(0));
     }
 
+    static void listerAndLogin() {
+        Config c = new Config();
+        c.pages = Config.defaults();
+        eq("lister in defaults", true, c.activeUrls(at("2026-11-04", "16:00")).contains(Config.LISTER_URL));
+        eq("lister every day", true, c.activeUrls(at("2026-11-03", "16:00")).contains(Config.LISTER_URL));
+        eq("claude.ai allowed", true, LoginActivity.allowed("https://claude.ai/magic-link#abc"));
+        eq("subdomain allowed", true, LoginActivity.allowed("https://api.claude.ai/x"));
+        eq("lookalike refused", false, LoginActivity.allowed("https://claude.ai.evil.com/x"));
+        eq("http refused", false, LoginActivity.allowed("http://claude.ai/x"));
+        eq("google refused", false, LoginActivity.allowed("https://accounts.google.com/"));
+        eq("null refused", false, LoginActivity.allowed(null));
+    }
+
     public static void main(String[] args) {
-        windows(); wrapAndNext(); roundTrip(); maxRota(); skipAndDim(); reporter();
+        windows(); wrapAndNext(); roundTrip(); maxRota(); skipAndDim(); reporter(); listerAndLogin();
         if (failures > 0) { System.out.println(failures + " failed"); System.exit(1); }
         System.out.println("ok: all kiosk logic tests passed");
     }

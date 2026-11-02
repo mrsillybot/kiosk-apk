@@ -133,6 +133,10 @@ public class SettingsActivity extends Activity {
         col.addView(pin);
         col.addView(hint("Slå først 'Skærmfastgørelse' til i Android-indstillinger → Sikkerhed. Afslut ved at holde Tilbage og Oversigt inde samtidig."));
 
+        col.addView(title("Log ind på claude.ai"));
+        col.addView(button("Log ind (Mr Silly-kontoen)", () -> startActivity(new android.content.Intent(this, LoginActivity.class))));
+        col.addView(hint("Lister (indkøb og opgaver) gemmer og læser live og kræver, at tabletten er logget ind. Google-login virker ikke her; brug mail-login."));
+
         col.addView(title("Opgave-feedback"));
         reportToken = new EditText(this);
         reportToken.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD);

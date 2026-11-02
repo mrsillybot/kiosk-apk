@@ -27,6 +27,10 @@
             android:name=".SettingsActivity"
             android:exported="false"
             android:label="Indstillinger" />
+        <activity
+            android:name=".LoginActivity"
+            android:exported="false"
+            android:label="Log ind" />
         <receiver android:name=".UpdateReceiver" android:exported="false" />
         <receiver android:name=".BootReceiver" android:exported="true">
             <intent-filter>

@@ -69,7 +69,7 @@ final class Config {
         cfg.dimTo = p.getInt("dimTo", 6 * 60);
         cfg.dimLevel = p.getInt("dimLevel", 25);
         cfg.windows = parseWindows(p.getString("windows2", DEFAULT_WINDOWS));
-        if (!p.contains("pages")) { cfg.pages = defaults(); return cfg; }
+        if (!p.contains("pages")) { cfg.pages = defaults(); p.edit().putBoolean("listerAdded", true).apply(); return cfg; }
         try {
             JSONArray a = new JSONArray(p.getString("pages", "[]"));
             for (int i = 0; i < a.length(); i++) {
@@ -80,7 +80,21 @@ final class Config {
                 cfg.pages.add(new Page(o.optString("name", ""), o.getString("url"), o.optBoolean("on", true), days, alt, kid));
             }
         } catch (Exception ignored) { }
+        if (!p.getBoolean("listerAdded", false)) {   // once: add Lister (indkøb + opgaver) to an existing install; deleting it later sticks
+            cfg.pages.add(new Page("Lister", LISTER_URL, true, ALL_DAYS, false));
+            p.edit().putBoolean("listerAdded", true).putString("pages", pagesJson(cfg.pages)).apply();
+        }
         return cfg;
+    }
+
+    static final String LISTER_URL = "https://claude.ai/artifact/Y19nr4rD7ybJQxz6PsBtUX";
+
+    static String pagesJson(List<Page> pages) {
+        JSONArray a = new JSONArray();
+        try {
+            for (Page pg : pages) a.put(new JSONObject().put("name", pg.name).put("url", pg.url).put("on", pg.on).put("days", pg.days).put("alt", pg.alt).put("kid", pg.kid));
+        } catch (Exception ignored) { }
+        return a.toString();
     }
 
     /** Pages saved with the first kid default (Wed-Sun, alt) move to the mornings-at-Alex' days. */
@@ -111,6 +125,7 @@ final class Config {
         d.add(new Page("Max", "https://claude.ai/artifact/KiQpc6K2kUgfxcV85DhPoX", true, ALL_DAYS, false, true));
         d.add(new Page("Laura", "https://claude.ai/artifact/JT6RpxNhYivhfSDzp94NTo", true, ALL_DAYS, false, true));
         d.add(new Page("Stella", "https://claude.ai/artifact/9rZRLiR3fGSjjZoXP1dPx7", true, ALL_DAYS, false, true));
+        d.add(new Page("Lister", LISTER_URL, true, ALL_DAYS, false));
         d.add(new Page("Madplan", "https://claude.ai/artifact/VJGXEVNnJNJfAyL3GiSCVE", false, ALL_DAYS, false));
         d.add(new Page("To uger", "https://claude.ai/artifact/7h3TUHwp5t9pPFVh4MvtZ8", false, ALL_DAYS, false));
         return d;
