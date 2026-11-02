@@ -9,8 +9,8 @@ og Android-SDK'et, ingen Gradle. Hjemmebrug, ikke til Play Store (Alex droppede 
 ## Brug
 - Installér: åbn https://raw.githubusercontent.com/mrsillybot/kiosk-apk/main/kiosk.apk på tabletten (offentligt, intet login), tillad "ukendte apps", åbn filen. Nye versioner installeres oven på de gamle (samme nøgle, indstillinger beholdes).
 - Indstillinger: tryk 5 gange i nederste højre hjørne.
-- Sider: flueben, navn, URL, ugedage, og "fre–søn kun hver anden uge" (Alex' weekender, anker 30/10-2026, jf. `familie/samvaer.md` i det private repo).
-  Standard: Alex (alle dage), Max, Laura og Stella (ons–søn, weekender hver anden uge); Madplan og To uger ligger slukket.
+- Sider: flueben, navn, URL, ugedage, og "lør–man kun hver anden uge" (Alex' weekender, anker 30/10-2026, jf. `familie/samvaer.md` i det private repo; mandag tæller som morgenen efter weekenden).
+  Standard: Alex (alle dage); Max, Laura og Stella vises de morgener børnene vågner hos Alex: tor og fre hver uge, plus lør, søn og mandagen efter i Alex' weekender (ons er Mors morgen; børnene kommer først om eftermiddagen). Gamle installationer med den første standard (ons–søn) flyttes automatisk. Madplan og To uger ligger slukket.
 - Tidsrum: hver række har start/slut (urskive) og ugedage (Hverdage / Weekend / Alle). Standard man–fre 6:00–8:15 og 15:00–22:00, lør–søn 7:00–22:00. Et tidsrum hører til den dag det starter.
 - Stryg til siden for næste/forrige side; siden glider ind, og timeren starter forfra. Standard 60 sekunder pr. side.
 - Glidende skift: appen holder én WebView pr. side (den viste og dens to naboer) indlæst i baggrunden og genindlæser dem usynligt, når de er over 5 minutter gamle, så der aldrig vises en spinner. Koster hukommelse: bliver tabletten langsom, så skær ned til kun den viste side + næste (`preload` i `MainActivity`).

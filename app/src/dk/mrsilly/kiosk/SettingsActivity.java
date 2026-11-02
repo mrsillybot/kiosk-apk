@@ -269,7 +269,7 @@ public class SettingsActivity extends Activity {
         r.days = dayChips(r.box, p.days);
 
         r.alt = new CheckBox(this);
-        r.alt.setText("Fre–søn kun hver anden uge (Alex' weekender)");
+        r.alt.setText("Lør–man kun hver anden uge (Alex' weekender)");
         r.alt.setChecked(p.alt);
         r.box.addView(r.alt);
 

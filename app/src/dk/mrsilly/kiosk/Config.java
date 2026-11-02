@@ -13,7 +13,9 @@ import org.json.JSONObject;
 /** Settings: pages (name, url, on/off, weekdays), seconds per page, and the hours the screen stays on. */
 final class Config {
     static final int ALL_DAYS = 127;          // bit 0 = Monday ... bit 6 = Sunday
-    static final int WED_TO_SUN = 4 + 8 + 16 + 32 + 64;
+    static final int WED_TO_SUN = 4 + 8 + 16 + 32 + 64;   // the old kid default (1 Nov 2026): wrong, the kids arrive Wed afternoon
+    /** The mornings the children wake at Alex': Thu, Fri, and (Alex' weekends only, see Page.alt) Sat, Sun and the Monday after. */
+    static final int KID_DAYS = 1 + 8 + 16 + 32 + 64;
     /** Epoch day of a Friday that starts one of Alex' weekends (30 Oct 2026); they repeat every 14 days. */
     static final long WEEKEND_ANCHOR = 20756;
 
@@ -22,7 +24,7 @@ final class Config {
         String url;
         boolean on;
         int days;
-        boolean alt;   // Fri-Sun only count in Alex' weekends (every other week)
+        boolean alt;   // Sat, Sun and the Monday after only count in Alex' weekends (every other week); Fri is every week
         Page(String name, String url, boolean on, int days, boolean alt) {
             this.name = name; this.url = url; this.on = on; this.days = days; this.alt = alt;
         }
@@ -61,19 +63,24 @@ final class Config {
             for (int i = 0; i < a.length(); i++) {
                 JSONObject o = a.getJSONObject(i);
                 cfg.pages.add(new Page(o.optString("name", ""), o.getString("url"), o.optBoolean("on", true),
-                    o.optInt("days", ALL_DAYS), o.optBoolean("alt", false)));
+                    migrateDays(o.optInt("days", ALL_DAYS), o.optBoolean("alt", false)), o.optBoolean("alt", false)));
             }
         } catch (Exception ignored) { }
         return cfg;
     }
 
-    /** What a fresh install shows; Max' page follows the 2-2-3 rota (Wed-Thu, plus Alex' weekends); Laura and Stella follow the same rota. */
+    /** Pages saved with the first kid default (Wed-Sun, alt) move to the mornings-at-Alex' days. */
+    static int migrateDays(int days, boolean alt) {
+        return alt && days == WED_TO_SUN ? KID_DAYS : days;
+    }
+
+    /** What a fresh install shows; the kids' pages show the mornings they wake at Alex' (Thu, Fri, plus Alex' weekends and the Monday after); Laura and Stella follow the same rota. */
     static List<Page> defaults() {
         List<Page> d = new ArrayList<>();
         d.add(new Page("Alex", "https://claude.ai/artifact/18FB2Uw8GYtvVSfGyvVSzu", true, ALL_DAYS, false));
-        d.add(new Page("Max", "https://claude.ai/artifact/KiQpc6K2kUgfxcV85DhPoX", true, WED_TO_SUN, true));
-        d.add(new Page("Laura", "https://claude.ai/artifact/JT6RpxNhYivhfSDzp94NTo", true, WED_TO_SUN, true));
-        d.add(new Page("Stella", "https://claude.ai/artifact/9rZRLiR3fGSjjZoXP1dPx7", true, WED_TO_SUN, true));
+        d.add(new Page("Max", "https://claude.ai/artifact/KiQpc6K2kUgfxcV85DhPoX", true, KID_DAYS, true));
+        d.add(new Page("Laura", "https://claude.ai/artifact/JT6RpxNhYivhfSDzp94NTo", true, KID_DAYS, true));
+        d.add(new Page("Stella", "https://claude.ai/artifact/9rZRLiR3fGSjjZoXP1dPx7", true, KID_DAYS, true));
         d.add(new Page("Madplan", "https://claude.ai/artifact/VJGXEVNnJNJfAyL3GiSCVE", false, ALL_DAYS, false));
         d.add(new Page("To uger", "https://claude.ai/artifact/7h3TUHwp5t9pPFVh4MvtZ8", false, ALL_DAYS, false));
         return d;
@@ -119,8 +126,8 @@ final class Config {
         for (Page pg : pages) {
             if (!pg.on || pg.url.trim().isEmpty() || (pg.days & (1 << dow)) == 0) continue;
             if (dayKey(now).equals(skipDay) && skipped.contains(pg.url.trim())) continue;
-            if (pg.alt && dow >= 4) {
-                long friday = epochDay - (dow - 4);
+            if (pg.alt && (dow >= 5 || dow == 0)) {      // Sat, Sun, and the Monday after the weekend
+                long friday = dow == 0 ? epochDay - 3 : epochDay - (dow - 4);
                 if (Math.floorMod((friday - WEEKEND_ANCHOR) / 7, 2L) != 0) continue;
             }
             out.add(pg.url.trim());
