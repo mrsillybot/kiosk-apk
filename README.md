@@ -19,6 +19,7 @@ og Android-SDK'et, ingen Gradle. Hjemmebrug, ikke til Play Store (Alex droppede 
 - Skærmretning: liggende som standard (Max' side og briefen er lavet til at fylde en liggende tablet uden at scrolle); kan sættes til stående eller følge tabletten.
 - Skærmlys dæmpes 20:00–6:00 til 25 % (kan ændres). Fastlås (skærmfastgørelse) er valgfri og slået fra; kræver Android-indstillingen "Skærmfastgørelse".
 - Claude-bjælken i toppen skjules med et script efter hver sideindlæsning (bygger på skallens egen `data-header-hidden`; kan gå i stykker, hvis Claude ændrer siden).
+- **Opgave-feedback (2/11-2026):** børnenes side kalder `KioskBridge.report(json)`, når et barn krydser en opgave af eller fra. `Reporter` lægger det i en kø på tabletten og sender det som en kommentar på GitHub-opgave #2 i `life-automations` (token i Indstillinger → Opgave-feedback: fine-grained, kun det repo, Issues: Read and write; uden token venter køen, højst 200). tick læser kommentarerne (`checks/chorelog.py`). Kun den faste JSON-form accepteres, intet andet sendes.
 - **KioskBridge:** `overblik/max.html` kalder `KioskBridge.skip()`, når Max ikke er hos Far, så appen springer siden over resten af dagen. Ugedagsreglen er reserve.
 
 ## Automatisk opdatering

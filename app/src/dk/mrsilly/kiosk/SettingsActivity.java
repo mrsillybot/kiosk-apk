@@ -43,6 +43,7 @@ public class SettingsActivity extends Activity {
     private EditText seconds;
     private RadioGroup orient;
     private CheckBox pin, dimOn;
+    private EditText reportToken;
     private Button dimFromBtn, dimToBtn;
     private TextView dimLevelText;
     private SeekBar dimLevel;
@@ -131,6 +132,14 @@ public class SettingsActivity extends Activity {
         pin.setChecked(cfg.pin);
         col.addView(pin);
         col.addView(hint("Slå først 'Skærmfastgørelse' til i Android-indstillinger → Sikkerhed. Afslut ved at holde Tilbage og Oversigt inde samtidig."));
+
+        col.addView(title("Opgave-feedback"));
+        reportToken = new EditText(this);
+        reportToken.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD);
+        reportToken.setHint("GitHub-token (kun Issues: write)");
+        reportToken.setText(cfg.reportToken);
+        col.addView(reportToken);
+        col.addView(hint("Børnenes afkrydsning sendes som en kommentar på en opgave i GitHub. Lav et fine-grained token kun til repoet life-automations med Issues: Read and write. Uden token venter afkrydsningerne på tabletten."));
 
         col.addView(title("Opdatering"));
         Button upd = button("Version " + Updater.installed(this) + " – søg efter opdatering", null);
@@ -342,6 +351,7 @@ public class SettingsActivity extends Activity {
         }
         cfg.orientation = Math.max(0, Math.min(2, orient.getCheckedRadioButtonId() - 100));
         cfg.pin = pin.isChecked();
+        cfg.reportToken = reportToken.getText().toString().trim();
         cfg.dimOn = dimOn.isChecked();
         cfg.dimFrom = dimFrom; cfg.dimTo = dimTo; cfg.dimLevel = dimLevel.getProgress() + 5;
         cfg.save(this);

@@ -19,7 +19,7 @@ public class ConfigTest {
     }
 
     private static void eq(String what, Object want, Object got) {
-        if (!want.equals(got)) { failures++; System.out.println("FAIL " + what + ": want " + want + ", got " + got); }
+        if (!java.util.Objects.equals(want, got)) { failures++; System.out.println("FAIL " + what + ": want " + want + ", got " + got); }
     }
 
     private static Config defaults() {
@@ -102,8 +102,22 @@ public class ConfigTest {
         eq("dim off", false, c.isDim(at("2026-11-04", "21:00")));
     }
 
+    static void reporter() {
+        String ok = "{\"v\":1,\"d\":\"2026-11-06\",\"c\":\"Laura\",\"t\":\"🫧 Tømme opper\",\"on\":true,\"at\":1793000000000}";
+        eq("good report accepted", ok, Reporter.check(ok));
+        eq("unknown child refused", null, Reporter.check(ok.replace("Laura", "Peter")));
+        eq("extra key refused", null, Reporter.check(ok.replace("}", ",\"x\":1}")));
+        eq("quote in text refused", null, Reporter.check(ok.replace("Tømme", "T\\\"ømme")));
+        eq("not json refused", null, Reporter.check("hello"));
+        eq("null refused", null, Reporter.check(null));
+        List<String> q = new java.util.ArrayList<>();
+        for (int i = 0; i < Reporter.MAX_QUEUE + 5; i++) q = Reporter.push(q, "e" + i);
+        eq("queue capped", Reporter.MAX_QUEUE, q.size());
+        eq("oldest dropped", "e5", q.get(0));
+    }
+
     public static void main(String[] args) {
-        windows(); wrapAndNext(); roundTrip(); maxRota(); skipAndDim();
+        windows(); wrapAndNext(); roundTrip(); maxRota(); skipAndDim(); reporter();
         if (failures > 0) { System.out.println(failures + " failed"); System.exit(1); }
         System.out.println("ok: all kiosk logic tests passed");
     }

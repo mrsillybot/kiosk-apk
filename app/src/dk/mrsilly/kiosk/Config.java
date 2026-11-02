@@ -40,6 +40,7 @@ final class Config {
     String skipDay = "";                       // pages that asked to be skipped today (see KioskBridge)
     Set<String> skipped = new HashSet<>();
     int orientation = 1;                       // 0 = follow the tablet, 1 = landscape, 2 = portrait
+    String reportToken = "";                   // GitHub token for the children's tick reports (see Reporter)
     boolean pin = false;                       // lock the app in place (screen pinning)
     boolean dimOn = true;
     int dimFrom = 20 * 60, dimTo = 6 * 60, dimLevel = 25;   // dim between dimFrom and dimTo to dimLevel % brightness
@@ -52,6 +53,7 @@ final class Config {
         cfg.skipped = new HashSet<>(p.getStringSet("skipUrls", new HashSet<String>()));
         cfg.orientation = p.getInt("orient", 1);
         cfg.pin = p.getBoolean("pin", false);
+        cfg.reportToken = p.getString("reportToken", "");
         cfg.dimOn = p.getBoolean("dimOn", true);
         cfg.dimFrom = p.getInt("dimFrom", 20 * 60);
         cfg.dimTo = p.getInt("dimTo", 6 * 60);
@@ -110,7 +112,7 @@ final class Config {
         c.getSharedPreferences("kiosk", Context.MODE_PRIVATE).edit()
             .putString("pages", a.toString())
             .putInt("seconds", seconds).putString("windows2", windowsToString())
-            .putInt("orient", orientation).putBoolean("pin", pin).putBoolean("dimOn", dimOn).putInt("dimFrom", dimFrom).putInt("dimTo", dimTo).putInt("dimLevel", dimLevel).apply();
+            .putInt("orient", orientation).putString("reportToken", reportToken).putBoolean("pin", pin).putBoolean("dimOn", dimOn).putInt("dimFrom", dimFrom).putInt("dimTo", dimTo).putInt("dimLevel", dimLevel).apply();
     }
 
     boolean hasAnyPage() {

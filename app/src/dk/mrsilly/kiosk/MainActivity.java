@@ -122,6 +122,8 @@ public class MainActivity extends Activity {
         private final Slot slot;
         Bridge(MainActivity a, Slot slot) { this.a = a; this.slot = slot; }
         @JavascriptInterface public void skip() { a.runOnUiThread(() -> a.skipSlot(slot)); }
+        /** The child ticked a chore on or off: {"v":1,"d":date,"c":child,"t":chore,"on":bool,"at":ms}; queued and sent to GitHub. */
+        @JavascriptInterface public void report(String json) { Reporter.enqueue(a.getApplicationContext(), json); }
     }
 
     private Slot newSlot(String url, Slot replaces) {
