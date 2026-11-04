@@ -69,7 +69,7 @@ final class Config {
         cfg.dimTo = p.getInt("dimTo", 6 * 60);
         cfg.dimLevel = p.getInt("dimLevel", 25);
         cfg.windows = parseWindows(p.getString("windows2", DEFAULT_WINDOWS));
-        if (!p.contains("pages")) { cfg.pages = defaults(); p.edit().putBoolean("listerAdded", true).apply(); return cfg; }
+        if (!p.contains("pages")) { cfg.pages = defaults(); p.edit().putBoolean("listerAdded", true).putBoolean("padThaiAdded", true).apply(); return cfg; }
         try {
             JSONArray a = new JSONArray(p.getString("pages", "[]"));
             for (int i = 0; i < a.length(); i++) {
@@ -86,10 +86,16 @@ final class Config {
             cfg.pages.add(new Page("Lister", LISTER_URL, true, ALL_DAYS, false));
             p.edit().putBoolean("listerAdded", true).putString("pages", pagesJson(cfg.pages)).apply();
         }
+        if (!p.getBoolean("padThaiAdded", false)) {   // once: add the optional pad thai slide, switched off; deleting it later sticks
+            cfg.pages.add(new Page("Pad thai", PADTHAI_URL, false, ALL_DAYS, false));
+            p.edit().putBoolean("padThaiAdded", true).putString("pages", pagesJson(cfg.pages)).apply();
+        }
         return cfg;
     }
 
     static final String LISTER_URL = "kiosk://lister";          // the built-in page (app/assets/lister.html), reads and writes the lists repo
+    static final String PADTHAI_URL = "https://claude.ai/artifact/5ERad3ajxr13cogLnu72NW";   // Mad's pad thai recipe page: an optional slide, off until switched on in Indstillinger
+
     static final String OLD_LISTER_URL = "https://claude.ai/artifact/Y19nr4rD7ybJQxz6PsBtUX";   // the claude.ai page of v10, dropped
 
     /** What a WebView should load for a page URL: the built-in Lister page for kiosk://lister, everything else as is. */
@@ -134,6 +140,7 @@ final class Config {
         d.add(new Page("Laura", "https://claude.ai/artifact/JT6RpxNhYivhfSDzp94NTo", true, ALL_DAYS, false, true));
         d.add(new Page("Stella", "https://claude.ai/artifact/9rZRLiR3fGSjjZoXP1dPx7", true, ALL_DAYS, false, true));
         d.add(new Page("Lister", LISTER_URL, true, ALL_DAYS, false));
+        d.add(new Page("Pad thai", PADTHAI_URL, false, ALL_DAYS, false));
         d.add(new Page("Madplan", "https://claude.ai/artifact/VJGXEVNnJNJfAyL3GiSCVE", false, ALL_DAYS, false));
         d.add(new Page("To uger", "https://claude.ai/artifact/7h3TUHwp5t9pPFVh4MvtZ8", false, ALL_DAYS, false));
         return d;

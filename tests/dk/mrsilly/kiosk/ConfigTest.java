@@ -132,6 +132,9 @@ public class ConfigTest {
         c.pages = Config.defaults();
         eq("lister in defaults", true, c.activeUrls(at("2026-11-04", "16:00")).contains(Config.LISTER_URL));
         eq("lister every day", true, c.activeUrls(at("2026-11-03", "16:00")).contains(Config.LISTER_URL));
+        eq("pad thai is an optional slide, off by default", false, c.activeUrls(at("2026-11-04", "16:00")).contains(Config.PADTHAI_URL));
+        for (Config.Page pg : c.pages) if (Config.PADTHAI_URL.equals(pg.url)) pg.on = true;
+        eq("pad thai can be switched on", true, c.activeUrls(at("2026-11-04", "16:00")).contains(Config.PADTHAI_URL));
         eq("built-in lister page", "file:///android_asset/lister.html", Config.realUrl("kiosk://lister"));
         eq("other pages untouched", "https://claude.ai/artifact/x", Config.realUrl("https://claude.ai/artifact/x"));
     }
