@@ -147,7 +147,11 @@ const under = dir => allPaths().filter(p => p.startsWith(dir)).map(p => ({ path:
 const items = () => under("indkoeb/"), tasks = () => under("opgaver/");
 const logs = () => { const m = new Map(); for (const p of allPaths()) { const x = /^log\/(\d{4}-\d{2}-\d{2})\/(Max|Laura|Stella)-/.exec(p), d = dataOf(p); if (x && d && d.done !== false && d.chore) m.set(`${x[1]}_${x[2]}_${hash(d.chore)}`, true); } return m; };
 const logPath = (date, kid, chore) => `log/${date}/${kid}-${hash(chore)}.json`;
+// plan.json: per day and child {"morning": [...], "afternoon": [...]} (older history: a flat list, counted as the afternoon list).
 const dayChores = date => plan.days?.[date] || {};
+const flatChores = v => Array.isArray(v) ? v : [...(v?.morning || []), ...(v?.afternoon || [])];
+const partChores = (v, part) => Array.isArray(v) ? (part === "afternoon" ? v : []) : (v?.[part] || []);
+const dayPart = () => new Date().getHours() < 12 ? "morning" : "afternoon";     // before 12 the morning routine, from 12 the afternoon list: never both at once
 const ordered = rows => rows.slice().sort((a, b) => (!!a.done - !!b.done) || ((a.order ?? a.at ?? 0) - (b.order ?? b.at ?? 0)) || String(a.text).localeCompare(String(b.text), "da"));
 
 async function refresh() { await readSnapshot(); render(); }
@@ -192,10 +196,11 @@ function shoppingHtml() {
   return { html, open: open.length };
 }
 function choresHtml() {
-  const td = dayChores(todayStr()), kids = KIDS.filter(k => td[k]?.length), lg = logs();
-  return kids.map(k => {
-    const list = td[k], done = list.filter(c => lg.has(`${todayStr()}_${k}_${hash(c)}`)).length;
-    return `<section class="group"><header><h3>${esc(k)}</h3><span class="count ${done === list.length ? "done-msg" : ""}">${done === list.length ? "Alt klaret" : `${done} / ${list.length}`}</span></header><ul class="rows">` +
+  const td = dayChores(todayStr()), part = dayPart(), mine = {}, lg = logs();
+  for (const k of KIDS) { const l = partChores(td[k], part); if (l.length) mine[k] = l; }
+  return Object.keys(mine).map(k => {
+    const list = mine[k], done = list.filter(c => lg.has(`${todayStr()}_${k}_${hash(c)}`)).length;
+    return `<section class="group"><header><h3>${esc(k)} <span class="count">${part === "morning" ? "morgen" : "eftermiddag"}</span></h3><span class="count ${done === list.length ? "done-msg" : ""}">${done === list.length ? "Alt klaret" : `${done} / ${list.length}`}</span></header><ul class="rows">` +
       list.map(c => `<li><button class="row" role="checkbox" aria-checked="${lg.has(`${todayStr()}_${k}_${hash(c)}`)}" data-kid="${esc(k)}" data-chore="${esc(c)}"><span class="box" aria-hidden="true">✓</span><span class="t">${esc(c)}</span></button></li>`).join("") + `</ul></section>`;
   }).join("");
 }
@@ -216,7 +221,7 @@ function statsHtml() {
   for (const k of KIDS) {
     let exp = 0, got = 0; const perChore = {};
     const dots = days.map(d => {
-      const list = dayChores(d)[k] || []; if (!list.length) return `<span class="dot" title="${d}: ingen opgaver"></span>`;
+      const list = flatChores(dayChores(d)[k]); if (!list.length) return `<span class="dot" title="${d}: ingen opgaver"></span>`;
       const n = list.filter(c => lg.has(`${d}_${k}_${hash(c)}`)).length;
       if (d <= today) { exp += list.length; got += n; for (const c of list) { const p = (perChore[c] ||= [0, 0]); p[1]++; if (lg.has(`${d}_${k}_${hash(c)}`)) p[0]++; } }
       const cls = n === list.length ? "all" : n ? "part" : (d < today ? "none" : "");
