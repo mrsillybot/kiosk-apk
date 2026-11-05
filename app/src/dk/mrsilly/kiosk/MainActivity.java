@@ -323,6 +323,7 @@ public class MainActivity extends Activity {
     @Override
     protected void onCreate(Bundle b) {
         super.onCreate(b);
+        Config.clearSkipsOncePerVersion(this, Updater.installed(this));
         root = new FrameLayout(this);
         root.setBackgroundColor(Color.BLACK);
 

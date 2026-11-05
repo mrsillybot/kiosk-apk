@@ -175,6 +175,17 @@ final class Config {
         p.edit().putString("skipUntil", o.toString()).apply();
     }
 
+    /** A skip a page asked for (skip / skipUntil) is only ever as good as the data it was based on: forget all of them once per installed version
+     *  (so an update starts clean) and whenever settings are saved. The pages ask again when they load. */
+    static void clearSkips(Context c) {
+        c.getSharedPreferences("kiosk", Context.MODE_PRIVATE).edit().remove("skipUntil").remove("skipDay").remove("skipUrls").apply();
+    }
+
+    static void clearSkipsOncePerVersion(Context c, int version) {
+        SharedPreferences p = c.getSharedPreferences("kiosk", Context.MODE_PRIVATE);
+        if (p.getInt("skipsClearedFor", 0) != version) { clearSkips(c); p.edit().putInt("skipsClearedFor", version).apply(); }
+    }
+
     void save(Context c) {
         JSONArray a = new JSONArray();
         try {
@@ -184,6 +195,7 @@ final class Config {
             }
         } catch (Exception ignored) { }
         c.getSharedPreferences("kiosk", Context.MODE_PRIVATE).edit()
+            .remove("skipUntil").remove("skipDay").remove("skipUrls")   // saving settings starts the day's skips afresh
             .putString("pages", a.toString())
             .putInt("seconds", seconds).putString("windows2", windowsToString())
             .putInt("orient", orientation).putString("reportToken", reportToken).putBoolean("pin", pin).putBoolean("dimOn", dimOn).putInt("dimFrom", dimFrom).putInt("dimTo", dimTo).putInt("dimLevel", dimLevel).apply();
